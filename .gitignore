@@ -1,0 +1,15 @@
+data/candidates.jsonl
+data/candidates.jsonl.gz
+outputs/*.csv
+# Allow the submission file to be committed
+!outputs/submission.csv
+
+__pycache__/
+rank/__pycache__/
+demo/__pycache__/
+precompute/__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.streamlit/secrets.toml
