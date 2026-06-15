@@ -517,7 +517,8 @@ def main():
                 elif scores.get("hidden_gem"):
                     label += " 💎"
                 
-                with st.expander(label):
+                with st.container(border=True):
+                    st.markdown(f"### {label}")
                     show_candidate_evaluation(candidate, scores, rank)
         else:
             # For large samples, show table first, then click to expand
@@ -542,7 +543,8 @@ def main():
             for rank_idx, (candidate, scores) in enumerate(candidates_with_scores[:5]):
                 rank = rank_idx + 1
                 p = candidate.get("profile", {})
-                with st.expander(f"#{rank} — {p.get('current_title')} at {p.get('current_company')}"):
+                with st.container(border=True):
+                    st.markdown(f"### #{rank} — {p.get('current_title')} at {p.get('current_company')}")
                     show_candidate_evaluation(candidate, scores, rank)
     
     with tab_cohort:
