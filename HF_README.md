@@ -8,7 +8,7 @@ sdk_version: "1.38.0"
 app_file: demo/app.py
 pinned: false
 license: mit
-short_description: Intelligent candidate ranking — no API keys, runs in 45s on 100K
+short_description: Intelligent ranker — no API keys, 45s on 100K
 ---
 
 # Redrob AI Candidate Ranker

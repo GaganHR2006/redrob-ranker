@@ -35,14 +35,43 @@ from cohort import run_cohort_analysis
 # ─────────────────────────────────────────────────────────────────────────────
 
 def stream_candidates(path: str):
-    """Stream candidates from JSONL or JSONL.GZ. Never loads all into memory."""
+    """Stream candidates from JSONL, JSONL.GZ, or a JSON array file.
+    Handles both newline-delimited JSON (JSONL) and plain JSON arrays.
+    Never loads more than necessary into memory for JSONL format."""
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"Candidates file not found: {path}")
-    
+
     opener = gzip.open(p, "rt", encoding="utf-8") if p.suffix == ".gz" else open(p, "r", encoding="utf-8")
     with opener as f:
-        for line in f:
+        # Peek at first non-whitespace character to detect format
+        first_char = ""
+        while not first_char.strip():
+            ch = f.read(1)
+            if not ch:
+                return  # empty file
+            first_char = ch
+
+        if first_char == "[":
+            # JSON array format — load fully, then stream items
+            rest = f.read()
+            try:
+                data = json.loads(first_char + rest)
+                for item in data:
+                    yield item
+            except json.JSONDecodeError as e:
+                print(f"  ERROR: Could not parse JSON array: {e}")
+            return
+
+        # JSONL format — stream line by line
+        # Reconstruct the first line (we already read one char)
+        first_line = first_char
+        for ch in f.read(65536):  # read first chunk to get first line
+            first_line += ch
+            if ch == "\n":
+                break
+        # Yield remaining content line by line
+        for line in (first_line + f.read()).splitlines():
             line = line.strip()
             if line:
                 try:

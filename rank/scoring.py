@@ -44,6 +44,9 @@ PRODUCTION_RETRIEVAL_SIGNALS = {
     "offline evaluation", "online evaluation", "a/b test", "ab test",
     "eval framework", "evaluation framework", "quality regression",
     "embedding drift", "index refresh", "retrieval quality",
+    # Core ML tooling (improves Python evidence detection)
+    "python", "pytorch", "tensorflow", "scikit-learn", "keras", "jax",
+    "huggingface", "transformers", "langchain", "llamaindex",
 }
 
 # Title keywords that indicate the person IS an AI/ML/Search engineer
@@ -75,6 +78,10 @@ HARD_NEGATIVE_TITLE_TOKENS = {
     "sales executive", "business development",
     "supply chain", "procurement", "logistics",
     "legal", "compliance officer",
+    "frontend", "front-end", "front end", "ui/ux", "designer",
+    "java developer", "android", "ios", "mobile", "react", "angular",
+    "cloud engineer", "devops", "sre", "system admin", "network engineer",
+    "qa engineer", "tester", "quality assurance",
 }
 
 # Full-career consulting penalty (if ALL companies are these → consulting-only flag)
@@ -257,6 +264,10 @@ def score_career_substance(candidate: dict) -> float:
     profile = candidate.get("profile", {})
     if not career:
         return 0.0
+
+    current_title = profile.get("current_title", "").lower()
+    if _text_contains_any(current_title, HARD_NEGATIVE_TITLE_TOKENS):
+        return 0.04
 
     # ── Signal 1: Profile headline and summary (unique per candidate) ────────
     headline = (profile.get("headline", "") or "").lower()
@@ -786,8 +797,9 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
 
     # Criteria: meaningful career score, career-skill gap, ownership evidence, right YoE
     is_gem = (
-        career_score >= 0.35 and       # actual production evidence in career
-        career_skill_gap >= 0.15 and   # career >> skills list (plain-language engineer)
+        career_score >= 0.50 and       # actual strong production evidence in career
+        skill_score < 0.35 and         # didn't keyword stuff their skills
+        career_skill_gap >= 0.20 and   # career >> skills list (plain-language engineer)
         ownership_hits >= 4 and        # owns real systems
         system_hits >= 3 and           # builds real systems
         yoe >= 4.0                     # enough experience to be the right hire

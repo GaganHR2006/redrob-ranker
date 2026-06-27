@@ -17,6 +17,7 @@ from pathlib import Path
 
 import streamlit as st
 import pandas as pd
+import altair as alt
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -25,6 +26,7 @@ from rank.reasoning import generate_reasoning
 from rank.prove_it import run_prove_it, prove_it_summary
 from rank.interview_blueprint import generate_interview_blueprint
 from rank.hm_translator import generate_hm_briefs
+from rank.cohort import jd_coverage_report, shared_gaps, pairwise_tradeoffs, anti_bias_audit
 
 # ─── Page config ────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -112,17 +114,124 @@ def score_color(score: float) -> str:
     if score >= 0.4: return "#fbbf24"
     return "#f87171"
 
-def score_bar(label: str, value: float) -> str:
+def score_bar(label: str, value: float, caption: str = "") -> str:
     color = score_color(value)
     pct = int(value * 100)
+    caption_html = f'<div style="font-size:11px; color:#94a3b8; margin-top:2.5px; font-style:italic;">{caption}</div>' if caption else ""
     return f"""
     <div class="score-bar-container">
         <div class="score-label">{label}: <strong style="color:{color}">{pct}%</strong></div>
         <div style="height:6px; background:#1e293b; border-radius:3px; overflow:hidden;">
             <div style="height:100%; width:{pct}%; background:{color}; border-radius:3px; transition:width 0.4s;"></div>
         </div>
+        {caption_html}
     </div>
     """
+
+def generate_score_driver_captions(candidate: dict, scores: dict) -> dict:
+    p = candidate.get("profile", {})
+    rs = candidate.get("redrob_signals", {})
+    career = candidate.get("career_history", [])
+    skills = candidate.get("skills", [])
+    
+    # 1. Career Substance
+    ai_ml_titles = 0
+    prod_companies = 0
+    total_months = 0
+    STRONG_TITLE_SIGNALS = {
+        "ml engineer", "machine learning engineer", "ai engineer", "applied ml",
+        "applied ai", "nlp engineer", "search engineer", "ranking engineer",
+        "recommendation", "data scientist", "research engineer",
+        "retrieval", "applied scientist", "founding ml", "founding ai",
+    }
+    for ch in career:
+        title = (ch.get("title", "") or "").lower()
+        company = (ch.get("company", "") or "").lower()
+        company_size = ch.get("company_size", "")
+        duration = int(ch.get("duration_months", 0) or 0)
+        total_months += duration
+        if any(kw in title for kw in STRONG_TITLE_SIGNALS):
+            ai_ml_titles += 1
+        is_consulting = any(cf in company for cf in ["tcs", "infosys", "wipro", "accenture", "cognizant", "capgemini"])
+        if not is_consulting and company_size:
+            prod_companies += 1
+            
+    yoe_years = total_months / 12.0
+    career_sub = scores.get("career_substance", 0)
+    if career_sub < 0.08:
+        career_why = "No production AI/ML work history; non-matching background."
+    elif career_sub < 0.30:
+        career_why = "Some software engineering background; lacks direct production ML titles."
+    else:
+        career_why = f"{ai_ml_titles} AI/ML-titled roles across {yoe_years:.1f}yr exp at product companies."
+
+    # 2. Skill Credibility
+    top_skills = sorted(skills, key=lambda s: s.get("endorsements", 0), reverse=True)
+    corroborated_skills = []
+    unverified_skills = []
+    career_text = " ".join([ch.get("title", "") + " " + ch.get("description", "") for ch in career]).lower()
+    for sk in top_skills[:5]:
+        sname = sk.get("name", "")
+        if any(part in career_text for part in sname.lower().split()):
+            corroborated_skills.append(sname)
+        else:
+            unverified_skills.append(sname)
+            
+    corr_str = ", ".join(corroborated_skills[:2])
+    unv_str = ", ".join(unverified_skills[:2])
+    if corr_str and unv_str:
+        skills_why = f"{corr_str} corroborated by career; {unv_str} unverified."
+    elif corr_str:
+        skills_why = f"{corr_str} corroborated by career history."
+    elif unv_str:
+        skills_why = f"{unv_str} listed but unverified by career history."
+    else:
+        skills_why = "No relevant AI/ML skills matched or corroborated."
+
+    # 3. Behavioral Availability
+    days = _days_since(rs.get("last_active_date", "2020-01-01"))
+    rrr = rs.get("recruiter_response_rate", 0)
+    notice = rs.get("notice_period_days", "?")
+    avail_why = f"Last active {days} days ago · {rrr:.0%} response rate · {notice}d notice."
+
+    # 4. Experience Quality
+    yoe = p.get("years_of_experience", 0)
+    unique_companies = len(set(ch.get("company", "").lower() for ch in career))
+    job_density_str = "stable career tenure" if (yoe > 0 and unique_companies / yoe <= 0.5) else "moderate job transitions"
+    if yoe < 3:
+        exp_why = f"Junior stage ({yoe:.0f}yr exp); lacks leadership exposure."
+    elif 5 <= yoe <= 9:
+        exp_why = f"Sweet-spot experience ({yoe:.0f}yr exp) with {job_density_str}."
+    else:
+        exp_why = f"{yoe:.0f}yr exp with {job_density_str}."
+
+    # 5. Star Predictor
+    star_score = scores.get("star_predictor", 0)
+    if star_score >= 0.75:
+        star_why = "Exceptional upward trajectory with clear progression."
+    elif star_score >= 0.5:
+        star_why = "Healthy career growth with consistent scope expansion."
+    else:
+        star_why = "Flat title growth or short stint durations."
+
+    # 6. Location Fit
+    loc = p.get("location", "").lower()
+    if any(city in loc for city in ["pune", "noida"]):
+        loc_why = "Located in preferred hubs (Pune/Noida)."
+    elif any(city in loc for city in ["delhi", "new delhi", "ncr", "gurgaon", "gurugram", "hyderabad", "bengaluru", "bangalore", "mumbai"]):
+        loc_why = "Located in acceptable Tier-1 hub."
+    else:
+        loc_why = "Out of target locations (relocation needed)."
+
+    return {
+        "career_substance": career_why,
+        "skill_credibility": skills_why,
+        "behavioral_availability": avail_why,
+        "experience_quality": exp_why,
+        "star_predictor": star_why,
+        "location": loc_why,
+    }
+
 
 def format_verdict(fit: str) -> str:
     mapping = {
@@ -164,14 +273,41 @@ def show_candidate_evaluation(candidate: dict, scores: dict, rank: int):
     headline = p.get("headline", "")
     
     # Header
+    name = p.get("anonymized_name", "Anonymous")
+    cand_id = candidate.get("candidate_id", "Unknown ID")
+    
+    # Expected Salary
+    sal = rs.get("expected_salary_range_inr_lpa", {})
+    sal_str = f"₹{sal.get('min', '?')}–{sal.get('max', '?')} LPA" if sal else "Not disclosed"
+    
+    # Notice Period
+    notice = rs.get("notice_period_days", "?")
+    
+    # Open to work status
+    otw_val = rs.get("open_to_work_flag")
+    otw_str = "🟢 Open to Work" if otw_val else "⚪ Passive"
+    
+    # Preferred work mode
+    mode = rs.get("preferred_work_mode", "Not specified").capitalize()
+    mode_icon = "🏢" if "onsite" in mode.lower() else ("🏠" if "remote" in mode.lower() else "🤝")
+    
     verdict = derive_verdict(scores)
     col_rank, col_info, col_verdict = st.columns([1, 5, 2])
     with col_rank:
         st.markdown(f'<div class="rank-badge">#{rank}</div>', unsafe_allow_html=True)
     with col_info:
+        st.markdown(f"### **{name}** &nbsp;`{cand_id}`", unsafe_allow_html=True)
         st.markdown(f"**{title}** at **{company}**")
         st.markdown(f"*{headline}*")
-        st.markdown(f"📍 {location} &nbsp;|&nbsp; {yoe:.0f} years experience", unsafe_allow_html=True)
+        st.markdown(
+            f"📍 {location} &nbsp;|&nbsp; "
+            f"⏳ {yoe:.0f}yr exp &nbsp;|&nbsp; "
+            f"🗓 {notice}d notice &nbsp;|&nbsp; "
+            f"💰 {sal_str} &nbsp;|&nbsp; "
+            f"{mode_icon} {mode} &nbsp;|&nbsp; "
+            f"{otw_str}",
+            unsafe_allow_html=True
+        )
     with col_verdict:
         badges = ""
         if scores.get("honeypot"):
@@ -186,22 +322,31 @@ def show_candidate_evaluation(candidate: dict, scores: dict, rank: int):
     
     st.divider()
     
-    # Score bars
+    # Profile summary (UX-03)
+    summary = p.get("summary", "")
+    if summary:
+        st.markdown("**Profile Summary / Pitch**")
+        st.markdown(f"> {summary}")
+        st.divider()
+        
+    # Score bars with explanations (UX-10)
+    captions = generate_score_driver_captions(candidate, scores)
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("**Score Breakdown**")
-        st.markdown(score_bar("Career Substance", scores.get("career_substance", 0)), unsafe_allow_html=True)
-        st.markdown(score_bar("Skill Credibility", scores.get("skill_credibility", 0)), unsafe_allow_html=True)
-        st.markdown(score_bar("Experience Quality", scores.get("experience_quality", 0)), unsafe_allow_html=True)
+        st.markdown("**Score Breakdown** (6 dimensions)")
+        st.markdown(score_bar("Career Substance (40%)", scores.get("career_substance", 0), captions.get("career_substance", "")), unsafe_allow_html=True)
+        st.markdown(score_bar("Skill Credibility (22%)", scores.get("skill_credibility", 0), captions.get("skill_credibility", "")), unsafe_allow_html=True)
+        st.markdown(score_bar("Behavioral Availability (15%)", scores.get("behavioral_availability", 0), captions.get("behavioral_availability", "")), unsafe_allow_html=True)
     with col2:
         st.markdown("&nbsp;", unsafe_allow_html=True)
-        st.markdown(score_bar("Behavioral Availability", scores.get("behavioral_availability", 0)), unsafe_allow_html=True)
-        st.markdown(score_bar("Location Fit", scores.get("location", 0)), unsafe_allow_html=True)
-        st.markdown(f"<br><b style='font-size:20px;color:{score_color(scores['composite'])}'>Composite: {scores['composite']:.4f}</b>", unsafe_allow_html=True)
+        st.markdown(score_bar("Experience Quality (11%)", scores.get("experience_quality", 0), captions.get("experience_quality", "")), unsafe_allow_html=True)
+        st.markdown(score_bar("Star Predictor (7%)", scores.get("star_predictor", 0), captions.get("star_predictor", "")), unsafe_allow_html=True)
+        st.markdown(score_bar("Location Fit (5%)", scores.get("location", 0), captions.get("location", "")), unsafe_allow_html=True)
+    st.markdown(f"<br><b style='font-size:20px;color:{score_color(scores['composite'])}'>Composite: {scores['composite']:.3f}</b>", unsafe_allow_html=True)
     
     st.divider()
     
-    # Tabs for the 8 components
+    # Tabs for the 6 evaluation panels
     tabs = st.tabs(["Shadow Recruiter", "Prove It Engine", "Deception Detector", 
                     "Interview Blueprint", "Hiring Manager Briefs", "Signals"])
     
@@ -210,10 +355,56 @@ def show_candidate_evaluation(candidate: dict, scores: dict, rank: int):
         reasoning = generate_reasoning(candidate, scores, rank)
         st.markdown(f'<div class="shadow-recruiter-box">{reasoning}</div>', unsafe_allow_html=True)
         
-        st.markdown("**Career History**")
+        # UX-08: Top Skills
+        st.markdown("### Top Skills")
+        if skills:
+            cols_skills = st.columns(2)
+            top_skills = sorted(skills, key=lambda s: s.get("endorsements", 0), reverse=True)[:10]
+            for idx, sk in enumerate(top_skills):
+                prof = sk.get("proficiency", "").capitalize()
+                end = sk.get("endorsements", 0)
+                dur = sk.get("duration_months", 0)
+                dur_str = f" · {dur}mo" if dur else ""
+                col_target = cols_skills[idx % 2]
+                col_target.markdown(f"• **{sk.get('name')}** — {prof} · {end} endorsements{dur_str}")
+        else:
+            st.write("No skills listed.")
+        st.divider()
+        
+        # UX-09: Education
+        st.markdown("### Education")
+        education = candidate.get("education", [])
+        if education:
+            for edu in education:
+                tier = edu.get("tier", "")
+                tier_label = {"tier_1": "🏆 Tier 1", "tier_2": "Tier 2", "tier_3": "Tier 3", "tier_4": "Tier 4"}.get(tier, "")
+                tier_str = f" ({tier_label})" if tier_label else ""
+                st.markdown(f"🎓 **{edu.get('degree', '')} in {edu.get('field_of_study', '')}** — {edu.get('institution', '')}{tier_str} ({edu.get('start_year', '?')}–{edu.get('end_year', '?')})")
+        else:
+            st.write("No education listed.")
+        st.divider()
+        
+        # UX-14: Certifications
+        st.markdown("### Certifications")
+        certs = candidate.get("certifications", [])
+        if certs:
+            for cert in certs:
+                authority = cert.get("authority", "")
+                auth_str = f" by {authority}" if authority else ""
+                year = cert.get("year", "")
+                year_str = f" ({year})" if year else ""
+                st.markdown(f"• **{cert.get('name')}**{auth_str}{year_str}")
+        else:
+            st.write("No certifications listed.")
+        st.divider()
+        
+        # Career history
+        st.markdown("### Career History")
         for ch in career:
-            with st.expander(f"{ch.get('title')} at {ch.get('company')} — {ch.get('duration_months')}mo"):
-                st.markdown(ch.get("description", "No description"))
+            st.markdown(f"**{ch.get('title')} at {ch.get('company')}** — {ch.get('duration_months')}mo")
+            desc = ch.get("description", "No description")
+            st.caption(desc[:300] + ("…" if len(desc) > 300 else ""))
+            st.divider()
     
     # ── Prove It Engine ──
     with tabs[1]:
@@ -301,7 +492,8 @@ def show_candidate_evaluation(candidate: dict, scores: dict, rank: int):
             st.metric("Notice Period", f"{rs.get('notice_period_days', '?')} days")
         with col_b:
             st.metric("Open To Work", "Yes" if rs.get("open_to_work_flag") else "No")
-            st.metric("GitHub Score", f"{rs.get('github_activity_score', -1)}")
+            gh = rs.get("github_activity_score", -1)
+            st.metric("GitHub Score", "Not linked" if gh == -1 else str(gh))
             st.metric("Applications (30d)", rs.get("applications_submitted_30d", 0))
         with col_c:
             st.metric("Profile Completeness", f"{rs.get('profile_completeness_score', 0):.0f}%")
@@ -357,9 +549,30 @@ def show_cohort_analysis(candidates_with_scores: list):
     # Score distribution
     composites = [s.get("composite", 0) for s in all_scores]
     if composites:
-        df_hist = pd.DataFrame({"Composite Score": composites})
         st.subheader("Score Distribution")
-        st.bar_chart(df_hist["Composite Score"].value_counts(bins=20).sort_index())
+        bin_edges = [round(i * 0.05, 2) for i in range(21)]
+        labels = [f"{bin_edges[i]:.2f}–{bin_edges[i+1]:.2f}" for i in range(len(bin_edges)-1)]
+        
+        df_hist = pd.DataFrame({"score": composites})
+        df_hist["bucket"] = pd.cut(
+            df_hist["score"],
+            bins=bin_edges,
+            labels=labels,
+            include_lowest=True
+        )
+        
+        dist = df_hist.groupby("bucket", observed=True).size().reset_index()
+        dist.columns = ["Score Range", "Count"]
+        dist["Score Range"] = dist["Score Range"].astype(str)
+        
+        chart = alt.Chart(dist).mark_bar(color="#4C9BE8").encode(
+            x=alt.X("Score Range:N", sort=None, axis=alt.Axis(labelAngle=-45)),
+            y=alt.Y("Count:Q"),
+            tooltip=["Score Range", "Count"]
+        ).properties(height=300)
+        
+        st.altair_chart(chart, use_container_width=True)
+        st.caption("Note: The spike at 0.00–0.15 represents candidates caught by the Keyword Stuffer Gate (hard-capped at 0.15).")
     
     # Top candidates comparison
     sorted_candidates = sorted(candidates_with_scores, key=lambda x: (-x[1].get("composite", 0), x[0].get("candidate_id", "")))
@@ -377,13 +590,13 @@ def show_cohort_analysis(candidates_with_scores: list):
             "Company": p.get("current_company"),
             "YoE": p.get("years_of_experience"),
             "Location": p.get("location"),
-            "Score": round(s.get("composite", 0), 4),
+            "Score": f'{s.get("composite", 0):.3f}',
             "Career": round(s.get("career_substance", 0), 3),
             "Skills": round(s.get("skill_credibility", 0), 3),
             "Notice (days)": rs.get("notice_period_days"),
-            "Days Inactive": days,
-            "Gem": "YES" if s.get("hidden_gem") else "",
-            "Deception": s.get("deception_risk", ""),
+            "Days Inactive": int(days) if pd.notna(days) and days != "" else "—",
+            "Gem": "💎 GEM" if s.get("hidden_gem") else "",
+            "Deception": {"low": "🟢 Low", "medium": "🟡 Medium", "high": "🔴 High", "n/a": "⚪ N/A"}.get(s.get("deception_risk", "n/a"), "⚪ N/A"),
         })
     
     df = pd.DataFrame(rows)
@@ -407,6 +620,113 @@ def show_cohort_analysis(candidates_with_scores: list):
         st.warning("**Pool Alert**: Low average career substance — most candidates don't have strong AI/ML backgrounds. Consider broadening sourcing strategy.")
     if avg_avail < 0.5:
         st.info("**Engagement Note**: Average platform activity is low. Recommend proactive outreach rather than waiting for candidates to respond.")
+    
+    st.divider()
+    
+    # ── Advanced Cohort Panels (from cohort.py) ────────────────────────────────
+    st.subheader("Advanced Cohort Intelligence")
+    
+    # Build top-10 list for cohort functions
+    sorted_non_hp = [(c, s, i+1) for i, (c, s) in enumerate(
+        sorted(candidates_with_scores, key=lambda x: -x[1].get("composite", 0))
+    ) if not s.get("honeypot")][:10]
+    
+    if len(sorted_non_hp) < 2:
+        st.info("Load at least 2 valid candidates to see advanced cohort analysis.")
+        return
+    
+    tab_cov, tab_gaps, tab_pairs, tab_bias = st.tabs([
+        "📋 JD Coverage", "🔍 Shared Gaps", "⚖️ Pairwise Tradeoffs", "🔎 Anti-Bias Audit"
+    ])
+    
+    # ── JD Coverage ──────────────────────────────────────────────────────────
+    with tab_cov:
+        st.markdown("**Which JD requirements does the top-10 shortlist actually satisfy?**")
+        try:
+            cov_data = jd_coverage_report(sorted_non_hp)
+            for req in cov_data.get("jd_coverage", []):
+                pct = req.get("top10_coverage_pct", 0)
+                label = req.get("label", "")
+                weight = req.get("weight", "")
+                weight_tag = "🔴 MUST HAVE" if weight == "must_have" else "🟡 Strong Positive"
+                color = "#34d399" if pct >= 70 else ("#fbbf24" if pct >= 40 else "#f87171")
+                st.markdown(
+                    f"<div style='display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #30363d'>"
+                    f"<span>{weight_tag} &nbsp;<b>{label}</b></span>"
+                    f"<span style='color:{color};font-weight:700'>{pct:.0f}% coverage</span></div>",
+                    unsafe_allow_html=True
+                )
+            st.caption("Coverage = % of top-10 candidates who satisfy this JD requirement. < 40% = probe in screening.")
+        except Exception as e:
+            st.error(f"JD Coverage error: {e}")
+    
+    # ── Shared Gaps ───────────────────────────────────────────────────────────
+    with tab_gaps:
+        st.markdown("**Requirements that most top-10 candidates don't satisfy — pool-wide gaps, not individual weakness.**")
+        try:
+            gaps_data = shared_gaps(sorted_non_hp)
+            gap_list = gaps_data.get("shared_gaps", [])
+            if not gap_list:
+                st.success("No critical shared gaps — the top-10 collectively cover all JD requirements.")
+            else:
+                for gap in gap_list:
+                    sev = gap.get("severity", "")
+                    sev_color = "#f87171" if sev == "critical" else "#fbbf24"
+                    n_missing = gap.get("candidates_missing", 0)
+                    st.markdown(
+                        f"<div style='background:#1e293b;border-left:3px solid {sev_color};padding:10px 14px;border-radius:0 8px 8px 0;margin:8px 0'>"
+                        f"<b style='color:{sev_color}'>{sev.upper()}</b> &nbsp;·&nbsp; "
+                        f"<b>{gap.get('requirement', '')}</b><br>"
+                        f"<span style='color:#94a3b8'>{gap.get('note', '')} ({n_missing}/10 missing)</span>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+        except Exception as e:
+            st.error(f"Shared Gaps error: {e}")
+    
+    # ── Pairwise Tradeoffs ────────────────────────────────────────────────────
+    with tab_pairs:
+        st.markdown("**Direct comparisons between adjacent-ranked candidates with numeric score evidence.**")
+        try:
+            pairs_data = pairwise_tradeoffs(sorted_non_hp[:6])
+            for pair in pairs_data.get("pairwise_tradeoffs", []):
+                ra, rb = pair.get("rank_a"), pair.get("rank_b")
+                ta = pair.get("title_a", "?")
+                tb = pair.get("title_b", "?")
+                sa = pair.get("score_a", 0)
+                sb = pair.get("score_b", 0)
+                with st.expander(f"Rank {ra} vs Rank {rb} — {ta} ({sa:.3f}) vs {tb} ({sb:.3f})"):
+                    for diff in pair.get("key_differences", []):
+                        st.markdown(f"- {diff}")
+                    rec = pair.get("recommendation", "")
+                    if rec:
+                        st.info(f"**Recommendation:** {rec}")
+        except Exception as e:
+            st.error(f"Pairwise Tradeoffs error: {e}")
+    
+    # ── Anti-Bias Audit ───────────────────────────────────────────────────────
+    with tab_bias:
+        st.markdown("**Structural diversity check across geographic spread and YoE range in the top-10.**")
+        try:
+            bias_data = anti_bias_audit(sorted_non_hp)
+            audit = bias_data.get("anti_bias_audit", {})
+            flags = audit.get("flags", [])
+            insights = audit.get("insights", [])
+            note = audit.get("note", "")
+            
+            if flags:
+                for flag in flags:
+                    st.warning(flag)
+            else:
+                st.success("No homogeneity flags — the top-10 shows healthy structural diversity.")
+            
+            for insight in insights:
+                st.markdown(f"- {insight}")
+            
+            if note:
+                st.caption(note)
+        except Exception as e:
+            st.error(f"Anti-Bias Audit error: {e}")
 
 
 # ─── Main App ─────────────────────────────────────────────────────────────────
@@ -421,47 +741,81 @@ def main():
         st.header("Upload Candidates")
         st.markdown("Upload a JSON file containing an array of candidate objects.")
         
-        uploaded = st.file_uploader("Choose JSON file", type=["json"])
+        uploaded = st.file_uploader("Choose JSON/JSONL file", type=["json", "jsonl"])
         
         st.divider()
-        st.markdown("**Try with sample data:**")
+        st.markdown("**Try without uploading:**")
         use_sample = st.button("Load sample_candidates.json")
+        use_top100 = st.button("Load Top 100 Ranked Candidates")
         
         st.divider()
         st.markdown("**About this system:**")
         st.markdown("""
-        - 5-dimension composite scoring
+        - 6-dimension composite scoring
         - Honeypot detection (impossible profiles)
         - Keyword-stuffer detection
         - Hidden gem surfacing
+        - Star Predictor (career arc velocity)
         - No API keys required
         - Runs in <5 min on 100K candidates
         """)
     
     # Load candidates
-    candidates_data = None
+    if "candidates_data" not in st.session_state:
+        st.session_state.candidates_data = None
     
     if uploaded:
         try:
-            content = uploaded.read()
-            candidates_data = json.loads(content)
-            if isinstance(candidates_data, dict):
-                candidates_data = [candidates_data]
-            st.sidebar.success(f"Loaded {len(candidates_data)} candidates")
+            content = uploaded.read().decode("utf-8")
+            try:
+                data = json.loads(content)
+                if isinstance(data, dict):
+                    data = [data]
+            except json.JSONDecodeError:
+                # Try parsing as JSON Lines
+                data = []
+                for line in content.strip().split('\n'):
+                    if line.strip():
+                        data.append(json.loads(line))
+            
+            st.session_state.candidates_data = data
+            st.sidebar.success(f"Loaded {len(data)} candidates")
         except Exception as e:
-            st.error(f"Error parsing JSON: {e}")
+            st.error(f"Error parsing JSON/JSONL: {e}")
             return
     
     elif use_sample:
-        sample_path = Path(__file__).parent.parent / "data" / "sample_candidates.json"
+        # Try data/ first, then repo root (handles both local and HF Space layouts)
+        sample_path = Path(__file__).parent.parent / "candidates.jsonl"
         if sample_path.exists():
-            with open(sample_path, encoding="utf-8") as f:
-                candidates_data = json.load(f)
-            st.sidebar.success(f"Loaded {len(candidates_data)} sample candidates")
+            # Try to read as jsonl
+            try:
+                with open(sample_path, encoding="utf-8") as f:
+                    data = []
+                    for line in f:
+                        if line.strip(): data.append(json.loads(line))
+                st.session_state.candidates_data = data
+            except:
+                st.error("Failed to parse candidates.jsonl")
+            st.sidebar.success(f"Loaded {len(st.session_state.candidates_data)} sample candidates")
         else:
-            st.error("sample_candidates.json not found in data/. Please upload a JSON file.")
+            st.error("candidates.jsonl not found in repo root. Please upload a JSONL file via the uploader above.")
+            return
+            
+    elif use_top100:
+        top100_path = Path(__file__).parent.parent / "data" / "top_100_candidates.json"
+        if not top100_path.exists():
+            top100_path = Path(__file__).parent.parent / "top_100_candidates.json"
+        if top100_path.exists():
+            with open(top100_path, encoding="utf-8") as f:
+                st.session_state.candidates_data = json.load(f)
+            st.sidebar.success(f"Loaded {len(st.session_state.candidates_data)} top candidates")
+        else:
+            st.error("top_100_candidates.json not found. Please generate it first.")
             return
     
+    candidates_data = st.session_state.candidates_data
+
     if candidates_data is None:
         st.info("Upload a candidates JSON file or click 'Load sample_candidates.json' to get started.")
         
@@ -500,26 +854,111 @@ def main():
     with tab_explorer:
         st.header("Ranked Candidates")
         
+        # UX-13: Actionable Output / Export - Download all ranked candidates as CSV
+        all_export_rows = []
+        for rank_idx, (c, s) in enumerate(candidates_with_scores):
+            p_e = c.get("profile", {})
+            rs_e = c.get("redrob_signals", {})
+            sal_e = rs_e.get("expected_salary_range_inr_lpa", {})
+            sal_str_e = f"₹{sal_e.get('min', '?')}–{sal_e.get('max', '?')} LPA" if sal_e else "N/D"
+            all_export_rows.append({
+                "Rank": rank_idx + 1,
+                "Candidate ID": c.get("candidate_id"),
+                "Name": p_e.get("anonymized_name", "Anonymous"),
+                "Title": p_e.get("current_title"),
+                "Company": p_e.get("current_company"),
+                "YoE": p_e.get("years_of_experience"),
+                "Location": p_e.get("location"),
+                "Composite Score": f"{s.get('composite', 0):.3f}",
+                "Expected Salary": sal_str_e,
+                "Notice Period (days)": rs_e.get("notice_period_days"),
+                "Open to Work": "Yes" if rs_e.get("open_to_work") else "No",
+                "Days Inactive": rs_e.get("days_inactive", ""),
+                "Deception Risk": s.get("deception_risk", "N/A").capitalize() if s.get("deception_risk") else "N/A",
+                "Hidden Gem": "Yes" if s.get("hidden_gem") else "No",
+                "Honeypot": "Yes" if s.get("honeypot") else "No",
+                "Career Score": f"{s.get('career_substance', 0):.3f}",
+                "Skill Score": f"{s.get('skill_credibility', 0):.3f}",
+                "Experience Score": f"{s.get('experience_quality', 0):.3f}",
+                "Availability Score": f"{s.get('behavioral_availability', 0):.3f}",
+                "Star Score": f"{s.get('star_predictor', 0):.3f}",
+            })
+        df_all_export = pd.DataFrame(all_export_rows)
+        
+        col_dl, _ = st.columns([1, 3])
+        with col_dl:
+            st.download_button(
+                label="⬇️ Export All Ranked Candidates (CSV)",
+                data=df_all_export.to_csv(index=False).encode('utf-8-sig'),
+                file_name="all_ranked_candidates.csv",
+                mime="text/csv",
+            )
+        st.write("")
+
+        # UX-07: Side-by-side comparison summary table above Top 5
+        st.subheader("Top 5 Candidate Side-by-Side Comparison")
+        comp_rows = []
+        for rank_idx, (c, s) in enumerate(candidates_with_scores[:5]):
+            p_c = c.get("profile", {})
+            rs_c = c.get("redrob_signals", {})
+            name_c = p_c.get("anonymized_name", "Anonymous")
+            title_c = p_c.get("current_title", "?")
+            company_c = p_c.get("current_company", "?")
+            sal_c = rs_c.get("expected_salary_range_inr_lpa", {})
+            sal_str_c = f"₹{sal_c.get('min', '?')}–{sal_c.get('max', '?')} LPA" if sal_c else "N/D"
+            comp_rows.append({
+                "Rank": f"#{rank_idx + 1}",
+                "Candidate ID": c.get("candidate_id"),
+                "Name": name_c,
+                "Current Role": f"{title_c} @ {company_c}",
+                "Score": f"{s.get('composite', 0):.3f}",
+                "Location": p_c.get("location", "?"),
+                "YoE": f"{p_c.get('years_of_experience', 0):.0f}yr",
+                "Notice": f"{rs_c.get('notice_period_days', '?')}d",
+                "Salary Expectation": sal_str_c,
+                "Open to Work": "✅" if rs_c.get("open_to_work_flag") else "❌",
+                "Deception": {"low": "🟢 Low", "medium": "🟡 Medium", "high": "🔴 High", "n/a": "⚪ N/A"}.get(s.get("deception_risk", "n/a"), "⚪ N/A"),
+            })
+        df_comp = pd.DataFrame(comp_rows)
+        st.dataframe(df_comp, use_container_width=True, hide_index=True)
+        st.write("")
+
         if len(candidates_data) <= 20:
             # For small samples, show all with full evaluation expandable
+            st.subheader("Candidate Evaluations")
             for rank_idx, (candidate, scores) in enumerate(candidates_with_scores):
                 rank = rank_idx + 1
                 p = candidate.get("profile", {})
-                composite = scores.get("composite", 0)
+                rs = candidate.get("redrob_signals", {})
                 
                 title = p.get("current_title", "?")
                 company = p.get("current_company", "?")
+                composite = scores.get("composite", 0)
+                location = p.get("location", "?")
                 yoe = p.get("years_of_experience", 0)
+                notice = rs.get("notice_period_days", "?")
+                cand_id = candidate.get("candidate_id", "")
                 
-                label = f"#{rank} — {title} at {company} ({yoe:.0f}yr) | Score: {composite:.4f}"
+                # UX-04: Enriched expander label
+                label = (
+                    f"#{rank} — {title} @ {company} ({cand_id})  |  "
+                    f"Score: {composite:.3f}  |  {location}  |  "
+                    f"{yoe:.0f}yr exp  |  {notice}d notice"
+                )
                 if scores.get("honeypot"):
-                    label += " 🚫"
+                    label += "  🚫 HONEYPOT"
                 elif scores.get("hidden_gem"):
-                    label += " 💎"
+                    label += "  💎 GEM"
+                # UX-12: Deception warning on collapsed expander
+                if scores.get("deception_risk") == "high":
+                    label += "  🔴 HIGH RISK"
                 
                 with st.container(border=True):
-                    st.markdown(f"### {label}")
-                    show_candidate_evaluation(candidate, scores, rank)
+                    col_lbl, col_chk = st.columns([8, 2])
+                    col_lbl.markdown(f"**{label}**")
+                    show_details = col_chk.checkbox("👁 View Details", key=f"show_sm_{cand_id}_{rank}")
+                    if show_details:
+                        show_candidate_evaluation(candidate, scores, rank)
         else:
             # For large samples, show table first, then click to expand
             rows = []
@@ -527,13 +966,15 @@ def main():
                 p = c.get("profile", {})
                 rows.append({
                     "Rank": rank_idx + 1,
+                    "Candidate ID": c.get("candidate_id"),
+                    "Name": p.get("anonymized_name", "Anonymous"),
                     "Title": p.get("current_title"),
                     "Company": p.get("current_company"),
                     "YoE": p.get("years_of_experience"),
-                    "Score": round(s.get("composite", 0), 4),
+                    "Score": f"{s.get('composite', 0):.3f}",
                     "Career": round(s.get("career_substance", 0), 3),
                     "Skills": round(s.get("skill_credibility", 0), 3),
-                    "Status": "HONEYPOT" if s.get("honeypot") else ("GEM" if s.get("hidden_gem") else ""),
+                    "Status": "HONEYPOT" if s.get("honeypot") else ("💎 GEM" if s.get("hidden_gem") else ""),
                 })
             
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -543,9 +984,36 @@ def main():
             for rank_idx, (candidate, scores) in enumerate(candidates_with_scores[:5]):
                 rank = rank_idx + 1
                 p = candidate.get("profile", {})
+                rs = candidate.get("redrob_signals", {})
+                
+                title = p.get("current_title", "?")
+                company = p.get("current_company", "?")
+                composite = scores.get("composite", 0)
+                location = p.get("location", "?")
+                yoe = p.get("years_of_experience", 0)
+                notice = rs.get("notice_period_days", "?")
+                cand_id = candidate.get("candidate_id", "")
+                
+                # UX-04: Enriched expander label
+                label = (
+                    f"#{rank} — {title} @ {company} ({cand_id})  |  "
+                    f"Score: {composite:.3f}  |  {location}  |  "
+                    f"{yoe:.0f}yr exp  |  {notice}d notice"
+                )
+                if scores.get("honeypot"):
+                    label += "  🚫 HONEYPOT"
+                elif scores.get("hidden_gem"):
+                    label += "  💎 GEM"
+                # UX-12: Deception warning on collapsed expander
+                if scores.get("deception_risk") == "high":
+                    label += "  🔴 HIGH RISK"
+                
                 with st.container(border=True):
-                    st.markdown(f"### #{rank} — {p.get('current_title')} at {p.get('current_company')}")
-                    show_candidate_evaluation(candidate, scores, rank)
+                    col_lbl, col_chk = st.columns([8, 2])
+                    col_lbl.markdown(f"**{label}**")
+                    show_details = col_chk.checkbox("👁 View Details", key=f"show_lg_{cand_id}_{rank}")
+                    if show_details:
+                        show_candidate_evaluation(candidate, scores, rank)
     
     with tab_cohort:
         show_cohort_analysis(candidates_with_scores)

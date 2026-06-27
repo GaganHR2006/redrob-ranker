@@ -770,8 +770,14 @@ def generate_reasoning(candidate: dict, scores: dict, rank: int) -> str:
     # Join with spaces
     narrative = " ".join(p.rstrip(".") + "." for p in parts if p)
 
-    # Enforce 300-char limit
-    if len(narrative) > 300:
-        narrative = narrative[:297] + "..."
+    # Enforce 800-char limit — submission spec has no length constraint; 800 gives full sentences
+    # without bloat. Trim only at sentence boundary to avoid mid-sentence truncation.
+    if len(narrative) > 800:
+        truncated = narrative[:800]
+        last_period = truncated.rfind(".")
+        if last_period > 600:  # found a clean sentence boundary
+            narrative = truncated[:last_period + 1]
+        else:
+            narrative = truncated
 
     return narrative

@@ -9,63 +9,63 @@
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": true,
-          "evidence": "Skills: pinecone, qdrant; Title/career: retrieval"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": true,
-          "evidence": "Skills: weaviate; Title/career: retrieval"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": true,
-          "evidence": "Skills: vector search; Title/career: retrieval"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": true,
-          "evidence": "Skills: faiss, pinecone; Title/career: recommendation"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": true,
-          "evidence": "Skills: pinecone, qdrant; Title/career: retrieval"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": true,
           "evidence": "Skills: pinecone, weaviate; Title/career: retrieval"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": true,
+          "evidence": "Skills: weaviate; Title/career: search engineer"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": true,
+          "evidence": "Skills: pinecone, qdrant; Title/career: retrieval"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": true,
+          "evidence": "Skills: weaviate; Title/career: retrieval"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": true,
+          "evidence": "Skills: vector search; Title/career: retrieval"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": true,
+          "evidence": "Skills: pinecone, qdrant; Title/career: retrieval"
+        },
+        {
           "rank": 7,
+          "candidate_id": "CAND_0077285",
+          "satisfied": true,
+          "evidence": "Skills: faiss, pinecone; Title/career: recommendation"
+        },
+        {
+          "rank": 8,
+          "candidate_id": "CAND_0077337",
+          "satisfied": true,
+          "evidence": "Skills: pinecone, qdrant; Title/career: retrieval"
+        },
+        {
+          "rank": 9,
           "candidate_id": "CAND_0028793",
           "satisfied": true,
           "evidence": "Career/title mentions: faiss, pinecone (not in skills list)"
         },
         {
-          "rank": 8,
-          "candidate_id": "CAND_0070398",
-          "satisfied": true,
-          "evidence": "Skills: faiss; Title/career: retrieval"
-        },
-        {
-          "rank": 9,
-          "candidate_id": "CAND_0041610",
-          "satisfied": true,
-          "evidence": "Career/title mentions: pinecone, search engineer (not in skills list)"
-        },
-        {
           "rank": 10,
-          "candidate_id": "CAND_0064326",
+          "candidate_id": "CAND_0061265",
           "satisfied": true,
-          "evidence": "Skills: weaviate, milvus; Title/career: search engineer"
+          "evidence": "Skills: qdrant, milvus; Title/career: retrieval"
         }
       ],
       "supply_gap": false,
@@ -75,139 +75,139 @@
       "requirement_id": "python_depth",
       "label": "Strong Python proficiency (ML engineering level)",
       "weight": "must_have",
-      "top10_coverage_pct": 40.0,
-      "top100_coverage_pct": 31.0,
+      "top10_coverage_pct": 20.0,
+      "top100_coverage_pct": 29.0,
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": false,
-          "evidence": "No evidence of python"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": false,
-          "evidence": "No evidence of python"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": true,
-          "evidence": "Skills: python"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": false,
-          "evidence": "No evidence of python"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": true,
-          "evidence": "Skills: python"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": false,
           "evidence": "No evidence of python"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": false,
+          "evidence": "No evidence of python"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": false,
+          "evidence": "No evidence of python"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": false,
+          "evidence": "No evidence of python"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": true,
+          "evidence": "Skills: python"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": false,
+          "evidence": "No evidence of python"
+        },
+        {
           "rank": 7,
-          "candidate_id": "CAND_0028793",
+          "candidate_id": "CAND_0077285",
           "satisfied": false,
           "evidence": "No evidence of python"
         },
         {
           "rank": 8,
-          "candidate_id": "CAND_0070398",
+          "candidate_id": "CAND_0077337",
           "satisfied": true,
           "evidence": "Skills: python"
         },
         {
           "rank": 9,
-          "candidate_id": "CAND_0041610",
+          "candidate_id": "CAND_0028793",
           "satisfied": false,
           "evidence": "No evidence of python"
         },
         {
           "rank": 10,
-          "candidate_id": "CAND_0064326",
-          "satisfied": true,
-          "evidence": "Skills: python"
+          "candidate_id": "CAND_0061265",
+          "satisfied": false,
+          "evidence": "No evidence of python"
         }
       ],
       "supply_gap": true,
-      "gap_note": "Only 4/10 top-10 candidates satisfy this requirement. Consider whether the shortlist is weaker than it looks on this dimension."
+      "gap_note": "Only 2/10 top-10 candidates satisfy this requirement. Consider whether the shortlist is weaker than it looks on this dimension."
     },
     {
       "requirement_id": "ranking_systems",
       "label": "Ranking / recommendation system ownership",
       "weight": "must_have",
       "top10_coverage_pct": 100.0,
-      "top100_coverage_pct": 100.0,
+      "top100_coverage_pct": 99.0,
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": true,
-          "evidence": "Skills: learning to rank, bm25; Title/career: ranking"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": true,
-          "evidence": "Skills: learning to rank; Title/career: ranking"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": true,
-          "evidence": "Skills: recommendation, learning to rank; Title/career: ranking"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": true,
-          "evidence": "Career/title mentions: ranking, recommendation (not in skills list)"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": true,
-          "evidence": "Skills: recommendation, bm25; Title/career: ranking"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": true,
           "evidence": "Skills: recommendation, learning to rank; Title/career: ranking"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": true,
+          "evidence": "Skills: recommendation; Title/career: ranking"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": true,
+          "evidence": "Skills: learning to rank, bm25; Title/career: ranking"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": true,
+          "evidence": "Skills: learning to rank; Title/career: ranking"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": true,
+          "evidence": "Skills: recommendation, learning to rank; Title/career: ranking"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": true,
+          "evidence": "Skills: learning to rank, bm25; Title/career: ranking"
+        },
+        {
           "rank": 7,
+          "candidate_id": "CAND_0077285",
+          "satisfied": true,
+          "evidence": "Career/title mentions: ranking, recommendation (not in skills list)"
+        },
+        {
+          "rank": 8,
+          "candidate_id": "CAND_0077337",
+          "satisfied": true,
+          "evidence": "Skills: recommendation, bm25; Title/career: ranking"
+        },
+        {
+          "rank": 9,
           "candidate_id": "CAND_0028793",
           "satisfied": true,
           "evidence": "Skills: learning to rank; Title/career: ranking"
         },
         {
-          "rank": 8,
-          "candidate_id": "CAND_0070398",
-          "satisfied": true,
-          "evidence": "Skills: recommendation, learning to rank; Title/career: ranking"
-        },
-        {
-          "rank": 9,
-          "candidate_id": "CAND_0041610",
-          "satisfied": true,
-          "evidence": "Skills: recommendation, learning to rank; Title/career: ranking"
-        },
-        {
           "rank": 10,
-          "candidate_id": "CAND_0064326",
+          "candidate_id": "CAND_0061265",
           "satisfied": true,
-          "evidence": "Skills: bm25; Title/career: ranking"
+          "evidence": "Skills: learning to rank; Title/career: ranking"
         }
       ],
       "supply_gap": false,
@@ -222,63 +222,63 @@
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": true,
-          "evidence": "Skills: transformer, rag; Title/career: ai engineer"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": true,
-          "evidence": "Skills: nlp, transformer"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": true,
-          "evidence": "Skills: transformer, llm"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": true,
-          "evidence": "Skills: nlp, transformer; Title/career: nlp"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": true,
-          "evidence": "Skills: transformer, llm; Title/career: nlp"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": true,
           "evidence": "Skills: rag, lora"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": true,
+          "evidence": "Skills: llm, rag"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": true,
+          "evidence": "Skills: transformer, rag; Title/career: ai engineer"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": true,
+          "evidence": "Skills: nlp, transformer"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": true,
+          "evidence": "Skills: transformer, llm"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": true,
+          "evidence": "Skills: transformer, rag; Title/career: nlp"
+        },
+        {
           "rank": 7,
+          "candidate_id": "CAND_0077285",
+          "satisfied": true,
+          "evidence": "Skills: nlp, transformer; Title/career: nlp"
+        },
+        {
+          "rank": 8,
+          "candidate_id": "CAND_0077337",
+          "satisfied": true,
+          "evidence": "Skills: transformer, llm; Title/career: nlp"
+        },
+        {
+          "rank": 9,
           "candidate_id": "CAND_0028793",
           "satisfied": true,
           "evidence": "Skills: nlp, lora; Title/career: nlp"
         },
         {
-          "rank": 8,
-          "candidate_id": "CAND_0070398",
-          "satisfied": true,
-          "evidence": "Skills: llm, rag"
-        },
-        {
-          "rank": 9,
-          "candidate_id": "CAND_0041610",
-          "satisfied": true,
-          "evidence": "Skills: lora, embedding"
-        },
-        {
           "rank": 10,
-          "candidate_id": "CAND_0064326",
+          "candidate_id": "CAND_0061265",
           "satisfied": true,
-          "evidence": "Skills: rag, lora"
+          "evidence": "Skills: transformer, lora"
         }
       ],
       "supply_gap": false,
@@ -288,68 +288,68 @@
       "requirement_id": "eval_framework",
       "label": "Offline/online evaluation pipeline experience",
       "weight": "strong_positive",
-      "top10_coverage_pct": 100.0,
+      "top10_coverage_pct": 90.0,
       "top100_coverage_pct": 95.0,
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": true,
-          "evidence": "Career/title mentions: a/b test, experiment (not in skills list)"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": true,
-          "evidence": "Career/title mentions: a/b test, evaluation (not in skills list)"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": true,
-          "evidence": "Career/title mentions: experiment, evaluation (not in skills list)"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": true,
-          "evidence": "Career/title mentions: a/b test, experiment (not in skills list)"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": true,
-          "evidence": "Career/title mentions: a/b test, experiment (not in skills list)"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": true,
           "evidence": "Skills: weights & biases"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": true,
+          "evidence": "Career/title mentions: a/b test, experiment (not in skills list)"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": true,
+          "evidence": "Career/title mentions: a/b test, experiment (not in skills list)"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": true,
+          "evidence": "Career/title mentions: a/b test, evaluation (not in skills list)"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": true,
+          "evidence": "Career/title mentions: experiment, evaluation (not in skills list)"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": false,
+          "evidence": "No evidence of a/b test, experiment, ndcg"
+        },
+        {
           "rank": 7,
+          "candidate_id": "CAND_0077285",
+          "satisfied": true,
+          "evidence": "Career/title mentions: a/b test, experiment (not in skills list)"
+        },
+        {
+          "rank": 8,
+          "candidate_id": "CAND_0077337",
+          "satisfied": true,
+          "evidence": "Career/title mentions: a/b test, experiment (not in skills list)"
+        },
+        {
+          "rank": 9,
           "candidate_id": "CAND_0028793",
           "satisfied": true,
           "evidence": "Skills: weights & biases"
         },
         {
-          "rank": 8,
-          "candidate_id": "CAND_0070398",
-          "satisfied": true,
-          "evidence": "Career/title mentions: a/b test (not in skills list)"
-        },
-        {
-          "rank": 9,
-          "candidate_id": "CAND_0041610",
-          "satisfied": true,
-          "evidence": "Career/title mentions: experiment, evaluation (not in skills list)"
-        },
-        {
           "rank": 10,
-          "candidate_id": "CAND_0064326",
+          "candidate_id": "CAND_0061265",
           "satisfied": true,
-          "evidence": "Skills: weights & biases"
+          "evidence": "Career/title mentions: experiment, mlflow (not in skills list)"
         }
       ],
       "supply_gap": false,
@@ -364,61 +364,61 @@
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": true,
-          "evidence": "All roles at product companies"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": true,
-          "evidence": "All roles at product companies"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": true,
-          "evidence": "All roles at product companies"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": true,
-          "evidence": "All roles at product companies"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": true,
-          "evidence": "All roles at product companies"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": true,
           "evidence": "All roles at product companies"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": true,
+          "evidence": "All roles at product companies"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": true,
+          "evidence": "All roles at product companies"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": true,
+          "evidence": "All roles at product companies"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": true,
+          "evidence": "All roles at product companies"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": true,
+          "evidence": "All roles at product companies"
+        },
+        {
           "rank": 7,
-          "candidate_id": "CAND_0028793",
+          "candidate_id": "CAND_0077285",
           "satisfied": true,
           "evidence": "All roles at product companies"
         },
         {
           "rank": 8,
-          "candidate_id": "CAND_0070398",
+          "candidate_id": "CAND_0077337",
           "satisfied": true,
           "evidence": "All roles at product companies"
         },
         {
           "rank": 9,
-          "candidate_id": "CAND_0041610",
+          "candidate_id": "CAND_0028793",
           "satisfied": true,
           "evidence": "All roles at product companies"
         },
         {
           "rank": 10,
-          "candidate_id": "CAND_0064326",
+          "candidate_id": "CAND_0061265",
           "satisfied": true,
           "evidence": "All roles at product companies"
         }
@@ -435,61 +435,61 @@
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": false,
-          "evidence": "No evidence of founding, early stage, 0-to-1"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": false,
-          "evidence": "No evidence of founding, early stage, 0-to-1"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": false,
-          "evidence": "No evidence of founding, early stage, 0-to-1"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": false,
-          "evidence": "No evidence of founding, early stage, 0-to-1"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": false,
-          "evidence": "No evidence of founding, early stage, 0-to-1"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": false,
           "evidence": "No evidence of founding, early stage, 0-to-1"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": false,
+          "evidence": "No evidence of founding, early stage, 0-to-1"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": false,
+          "evidence": "No evidence of founding, early stage, 0-to-1"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": false,
+          "evidence": "No evidence of founding, early stage, 0-to-1"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": false,
+          "evidence": "No evidence of founding, early stage, 0-to-1"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": false,
+          "evidence": "No evidence of founding, early stage, 0-to-1"
+        },
+        {
           "rank": 7,
-          "candidate_id": "CAND_0028793",
+          "candidate_id": "CAND_0077285",
           "satisfied": false,
           "evidence": "No evidence of founding, early stage, 0-to-1"
         },
         {
           "rank": 8,
-          "candidate_id": "CAND_0070398",
+          "candidate_id": "CAND_0077337",
           "satisfied": false,
           "evidence": "No evidence of founding, early stage, 0-to-1"
         },
         {
           "rank": 9,
-          "candidate_id": "CAND_0041610",
+          "candidate_id": "CAND_0028793",
           "satisfied": false,
           "evidence": "No evidence of founding, early stage, 0-to-1"
         },
         {
           "rank": 10,
-          "candidate_id": "CAND_0064326",
+          "candidate_id": "CAND_0061265",
           "satisfied": false,
           "evidence": "No evidence of founding, early stage, 0-to-1"
         }
@@ -501,68 +501,68 @@
       "requirement_id": "availability",
       "label": "Available within 60 days",
       "weight": "strong_positive",
-      "top10_coverage_pct": 80.0,
-      "top100_coverage_pct": 66.0,
+      "top10_coverage_pct": 70.0,
+      "top100_coverage_pct": 67.0,
       "top10_detail": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "satisfied": true,
-          "evidence": "45-day notice period"
-        },
-        {
-          "rank": 2,
-          "candidate_id": "CAND_0042029",
-          "satisfied": true,
-          "evidence": "45-day notice period"
-        },
-        {
-          "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "satisfied": true,
-          "evidence": "30-day notice period"
-        },
-        {
-          "rank": 4,
-          "candidate_id": "CAND_0077285",
-          "satisfied": true,
-          "evidence": "60-day notice period"
-        },
-        {
-          "rank": 5,
-          "candidate_id": "CAND_0077337",
-          "satisfied": true,
-          "evidence": "60-day notice period"
-        },
-        {
-          "rank": 6,
           "candidate_id": "CAND_0018499",
           "satisfied": true,
           "evidence": "15-day notice period"
         },
         {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "satisfied": false,
+          "evidence": "90-day notice period \u2014 exceeds 60-day threshold"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "satisfied": true,
+          "evidence": "45-day notice period"
+        },
+        {
+          "rank": 4,
+          "candidate_id": "CAND_0042029",
+          "satisfied": true,
+          "evidence": "45-day notice period"
+        },
+        {
+          "rank": 5,
+          "candidate_id": "CAND_0052328",
+          "satisfied": true,
+          "evidence": "30-day notice period"
+        },
+        {
+          "rank": 6,
+          "candidate_id": "CAND_0062247",
+          "satisfied": true,
+          "evidence": "30-day notice period"
+        },
+        {
           "rank": 7,
+          "candidate_id": "CAND_0077285",
+          "satisfied": true,
+          "evidence": "60-day notice period"
+        },
+        {
+          "rank": 8,
+          "candidate_id": "CAND_0077337",
+          "satisfied": true,
+          "evidence": "60-day notice period"
+        },
+        {
+          "rank": 9,
           "candidate_id": "CAND_0028793",
           "satisfied": false,
           "evidence": "120-day notice period \u2014 exceeds 60-day threshold"
         },
         {
-          "rank": 8,
-          "candidate_id": "CAND_0070398",
+          "rank": 10,
+          "candidate_id": "CAND_0061265",
           "satisfied": false,
           "evidence": "120-day notice period \u2014 exceeds 60-day threshold"
-        },
-        {
-          "rank": 9,
-          "candidate_id": "CAND_0041610",
-          "satisfied": true,
-          "evidence": "30-day notice period"
-        },
-        {
-          "rank": 10,
-          "candidate_id": "CAND_0064326",
-          "satisfied": true,
-          "evidence": "45-day notice period"
         }
       ],
       "supply_gap": false,
@@ -571,6 +571,32 @@
   ],
   "shared_gaps": [
     {
+      "requirement": "Strong Python proficiency (ML engineering level)",
+      "severity": "critical",
+      "candidates_missing": 8,
+      "note": "8/10 top candidates don't clearly satisfy this. This is a pool-wide supply gap, not individual weakness.",
+      "examples": [
+        {
+          "rank": 1,
+          "candidate_id": "CAND_0018499",
+          "title": "Senior Machine Learning Engineer",
+          "reason": "No evidence of python"
+        },
+        {
+          "rank": 2,
+          "candidate_id": "CAND_0005649",
+          "title": "Senior Data Scientist",
+          "reason": "No evidence of python"
+        },
+        {
+          "rank": 3,
+          "candidate_id": "CAND_0071974",
+          "title": "Senior AI Engineer",
+          "reason": "No evidence of python"
+        }
+      ]
+    },
+    {
       "requirement": "Early-stage / founding team experience",
       "severity": "notable",
       "candidates_missing": 10,
@@ -578,20 +604,20 @@
       "examples": [
         {
           "rank": 1,
-          "candidate_id": "CAND_0071974",
-          "title": "Senior AI Engineer",
+          "candidate_id": "CAND_0018499",
+          "title": "Senior Machine Learning Engineer",
           "reason": "No evidence of founding, early stage, 0-to-1"
         },
         {
           "rank": 2,
-          "candidate_id": "CAND_0042029",
+          "candidate_id": "CAND_0005649",
           "title": "Senior Data Scientist",
           "reason": "No evidence of founding, early stage, 0-to-1"
         },
         {
           "rank": 3,
-          "candidate_id": "CAND_0052328",
-          "title": "Recommendation Systems Engineer",
+          "candidate_id": "CAND_0071974",
+          "title": "Senior AI Engineer",
           "reason": "No evidence of founding, early stage, 0-to-1"
         }
       ]
@@ -601,77 +627,78 @@
     {
       "rank_a": 1,
       "rank_b": 2,
-      "candidate_a": "CAND_0071974",
-      "candidate_b": "CAND_0042029",
-      "title_a": "Senior AI Engineer",
+      "candidate_a": "CAND_0018499",
+      "candidate_b": "CAND_0005649",
+      "title_a": "Senior Machine Learning Engineer",
       "title_b": "Senior Data Scientist",
-      "score_a": 0.999,
-      "score_b": 0.9917,
+      "score_a": 0.9809,
+      "score_b": 0.9531,
       "key_differences": [
-        "Scores are nearly identical \u2014 toss-up. Use interview to differentiate."
+        "Availability: Rank 1 can start ~75 days sooner (15d vs 90d notice)."
       ],
       "recommendation": "Rank 1 leads on composite \u2014 move it first unless a specific gap applies."
     },
     {
       "rank_a": 2,
       "rank_b": 3,
-      "candidate_a": "CAND_0042029",
-      "candidate_b": "CAND_0052328",
+      "candidate_a": "CAND_0005649",
+      "candidate_b": "CAND_0071974",
       "title_a": "Senior Data Scientist",
-      "title_b": "Recommendation Systems Engineer",
-      "score_a": 0.9917,
-      "score_b": 0.9915,
+      "title_b": "Senior AI Engineer",
+      "score_a": 0.9531,
+      "score_b": 0.9449,
       "key_differences": [
-        "Career arc: Rank 2 shows stronger growth trajectory (star=0.68 vs 0.57)."
+        "Availability: Rank 3 can start ~45 days sooner (90d vs 45d notice)."
       ],
       "recommendation": "Choose Rank 2 if technical depth is the priority. Choose Rank 3 if availability matters more."
     },
     {
       "rank_a": 5,
       "rank_b": 6,
-      "candidate_a": "CAND_0077337",
-      "candidate_b": "CAND_0018499",
-      "title_a": "Staff Machine Learning Engineer",
-      "title_b": "Senior Machine Learning Engineer",
-      "score_a": 0.9834,
-      "score_b": 0.9809,
+      "candidate_a": "CAND_0052328",
+      "candidate_b": "CAND_0062247",
+      "title_a": "Recommendation Systems Engineer",
+      "title_b": "AI Engineer",
+      "score_a": 0.9415,
+      "score_b": 0.9413,
       "key_differences": [
-        "Availability: Rank 6 can start ~45 days sooner (60d vs 15d notice).",
-        "Reachability: Rank 5 has meaningfully higher recruiter response rate (95% vs 61%).",
-        "Career arc: Rank 5 shows stronger growth trajectory (star=0.70 vs 0.59)."
+        "Technical depth: Rank 5 trails (1.36 vs 1.43 combined career+skill score)."
       ],
       "recommendation": "Rank 5 leads on composite \u2014 move it first unless a specific gap applies."
     },
     {
       "rank_a": 10,
       "rank_b": 11,
-      "candidate_a": "CAND_0064326",
-      "candidate_b": "CAND_0041669",
-      "title_a": "Search Engineer",
+      "candidate_a": "CAND_0061265",
+      "candidate_b": "CAND_0007009",
+      "title_a": "Recommendation Systems Engineer",
       "title_b": "Recommendation Systems Engineer",
-      "score_a": 0.9685,
-      "score_b": 0.9673,
+      "score_a": 0.9256,
+      "score_b": 0.9213,
       "key_differences": [
-        "Career arc: Rank 11 shows stronger growth trajectory (star=0.57 vs 0.44)."
+        "Availability: Rank 11 can start ~90 days sooner (120d vs 30d notice).",
+        "Reachability: Rank 10 has meaningfully higher recruiter response rate (94% vs 62%).",
+        "Career arc: Rank 10 shows stronger growth trajectory (star=0.50 vs 0.37)."
       ],
       "recommendation": "Rank 10 leads on composite \u2014 move it first unless a specific gap applies."
     }
   ],
   "anti_bias_audit": {
-    "flags": [],
+    "flags": [
+      "No hidden gems in top-20 \u2014 all top candidates are heavy self-promoters. Consider whether some strong plain-language engineers were ranked lower than they should be."
+    ],
     "insights": [
-      "Geographic spread looks healthy: 6 different cities in top-10.",
-      "YoE range in top-10: 6\u20138 years \u2014 healthy spread.",
-      "18 hidden gems surfaced in top-20 \u2014 plain-language engineers who don't keyword-stuff but have strong career substance."
+      "Geographic spread looks healthy: 5 different cities in top-10.",
+      "YoE range in top-10: 6\u20138 years \u2014 healthy spread."
     ],
     "note": "Note: This audit checks structural homogeneity only. Protected characteristic data (gender, caste, etc.) is not available in this dataset, so those dimensions cannot be audited."
   },
   "summary": {
     "total_candidates_analyzed": 100,
     "top10_jd_requirements_unmet": 2,
-    "shared_gaps_found": 1,
-    "bias_flags": 0,
+    "shared_gaps_found": 2,
+    "bias_flags": 1,
     "overall_pool_quality": "adequate",
-    "recommendation": "Pool has 2 unmet JD requirements and 1 shared gaps. Review the detailed sections before finalizing outreach."
+    "recommendation": "Pool has 2 unmet JD requirements and 2 shared gaps. Review the detailed sections before finalizing outreach."
   }
 }
