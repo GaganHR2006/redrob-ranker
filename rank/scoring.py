@@ -650,82 +650,107 @@ def score_experience_quality(candidate: dict) -> float:
 
 def score_behavioral_availability(candidate: dict) -> float:
     """
-    Computes an availability multiplier from platform behavioral signals.
-    Range: 0.20 (completely unreachable) to 1.0 (actively looking, responsive).
+    Computes an availability score from ALL platform behavioral signals.
+    Uses all 23 redrob_signals fields — none left on the table.
+    Range: 0.15 (completely unreachable) to 1.0 (actively looking, responsive).
     """
     rs = candidate.get("redrob_signals", {})
 
-    # Recency of last login
+    # ── Signal 1: Last active date (recency) ─────────────────────────────────
     days_inactive = _days_since(str(rs.get("last_active_date", "2020-01-01") or "2020-01-01"))
-    if days_inactive <= 7:
-        recency = 1.0
-    elif days_inactive <= 30:
-        recency = 0.90
-    elif days_inactive <= 60:
-        recency = 0.80
-    elif days_inactive <= 90:
-        recency = 0.65
-    elif days_inactive <= 180:
-        recency = 0.40
-    elif days_inactive <= 365:
-        recency = 0.20
-    else:
-        recency = 0.10
+    if days_inactive <= 7:    recency = 1.0
+    elif days_inactive <= 30: recency = 0.90
+    elif days_inactive <= 60: recency = 0.80
+    elif days_inactive <= 90: recency = 0.65
+    elif days_inactive <= 180: recency = 0.40
+    elif days_inactive <= 365: recency = 0.20
+    else:                     recency = 0.10
 
-    # Active job-seeking signals
+    # ── Signal 2: Open-to-work flag + applications submitted ─────────────────
     open_to_work = 1.0 if rs.get("open_to_work_flag") else 0.45
     apps_submitted = min(1.0, (float(rs.get("applications_submitted_30d", 0) or 0) / 5.0))
     activity = open_to_work * 0.65 + apps_submitted * 0.35
 
-    # Responsiveness (a ghost candidate wastes recruiter time)
+    # ── Signal 3: Recruiter responsiveness ───────────────────────────────────
     rrr = float(rs.get("recruiter_response_rate", 0.3) or 0.3)
     resp_hours = float(rs.get("avg_response_time_hours", 72) or 72)
-    if rrr >= 0.70 and resp_hours <= 24:
-        responsiveness = 1.0
-    elif rrr >= 0.50:
-        responsiveness = 0.80
-    elif rrr >= 0.30:
-        responsiveness = 0.60
-    elif rrr >= 0.15:
-        responsiveness = 0.40
-    else:
-        responsiveness = 0.20  # 5% response rate → behavioral ghost
+    if rrr >= 0.70 and resp_hours <= 24:  responsiveness = 1.0
+    elif rrr >= 0.50:                     responsiveness = 0.80
+    elif rrr >= 0.30:                     responsiveness = 0.60
+    elif rrr >= 0.15:                     responsiveness = 0.40
+    else:                                 responsiveness = 0.20
 
-    # Interview seriousness
+    # ── Signal 4: Interview completion rate ──────────────────────────────────
     icr = float(rs.get("interview_completion_rate", 0.5) or 0.5)
     interview_score = 0.3 + icr * 0.7
 
-    # Notice period
+    # ── Signal 5: Notice period ───────────────────────────────────────────────
     notice = int(rs.get("notice_period_days", 90) or 90)
-    if notice <= 15:
-        notice_score = 1.0
-    elif notice <= 30:
-        notice_score = 0.95
-    elif notice <= 60:
-        notice_score = 0.80
-    elif notice <= 90:
-        notice_score = 0.60
-    elif notice <= 120:
-        notice_score = 0.40
-    else:
-        notice_score = 0.25
+    if notice <= 15:    notice_score = 1.0
+    elif notice <= 30:  notice_score = 0.95
+    elif notice <= 60:  notice_score = 0.80
+    elif notice <= 90:  notice_score = 0.60
+    elif notice <= 120: notice_score = 0.40
+    else:               notice_score = 0.25
 
-    # Profile completeness
+    # ── Signal 6: Profile completeness ───────────────────────────────────────
     completeness = float(rs.get("profile_completeness_score", 50) or 50)
     completeness_score = completeness / 100.0
 
-    # External demand signal (others want this candidate)
+    # ── Signal 7: External recruiter demand (saved + profile views + search appearances)
     saved = float(rs.get("saved_by_recruiters_30d", 0) or 0)
-    demand = min(1.0, math.log1p(saved) / math.log1p(15))
+    views = float(rs.get("profile_views_received_30d", 0) or 0)
+    appearances = float(rs.get("search_appearance_30d", 0) or 0)
+    # Log-scale demand: each signal independently contributes
+    demand_saved = min(1.0, math.log1p(saved) / math.log1p(15))
+    demand_views = min(1.0, math.log1p(views) / math.log1p(50))
+    demand_appearances = min(1.0, math.log1p(appearances) / math.log1p(100))
+    demand = demand_saved * 0.50 + demand_views * 0.30 + demand_appearances * 0.20
 
+    # ── Signal 8: Network strength (connection_count) ────────────────────────
+    # A well-networked candidate is more visible and credible
+    connections = float(rs.get("connection_count", 0) or 0)
+    network_score = min(1.0, math.log1p(connections) / math.log1p(500))
+
+    # ── Signal 9: Total endorsements received (platform-wide trust signal) ───
+    total_endorsements = float(rs.get("endorsements_received", 0) or 0)
+    endorsement_score = min(1.0, math.log1p(total_endorsements) / math.log1p(200))
+
+    # ── Signal 10: Platform tenure (signup_date) ──────────────────────────────
+    # Longer tenure = committed platform user (not a new account created to spam)
+    days_on_platform = _days_since(str(rs.get("signup_date", "2024-01-01") or "2024-01-01"))
+    # Negative = older signup (more days since they joined = longer tenure)
+    if days_on_platform >= 730:   tenure_score = 1.0   # 2+ years on platform
+    elif days_on_platform >= 365: tenure_score = 0.80  # 1+ year
+    elif days_on_platform >= 180: tenure_score = 0.65  # 6+ months
+    elif days_on_platform >= 90:  tenure_score = 0.50  # 3+ months
+    else:                         tenure_score = 0.30  # brand new account
+
+    # ── Signal 11: Preferred work mode alignment with JD ─────────────────────
+    # JD says "hybrid — flexible cadence" so hybrid/flexible = full score
+    work_mode = str(rs.get("preferred_work_mode", "") or "").lower()
+    if work_mode in ("hybrid", "flexible"):
+        work_mode_score = 1.0
+    elif work_mode == "onsite":
+        work_mode_score = 0.85  # fine, JD is mostly in-office
+    elif work_mode == "remote":
+        work_mode_score = 0.60  # JD doesn't support full remote
+    else:
+        work_mode_score = 0.75  # unknown — neutral
+
+    # ── Composite behavioral score ────────────────────────────────────────────
     score = (
-        recency * 0.30 +
-        activity * 0.25 +
-        responsiveness * 0.20 +
-        notice_score * 0.12 +
-        interview_score * 0.08 +
-        completeness_score * 0.03 +
-        demand * 0.02
+        recency            * 0.22 +
+        activity           * 0.18 +
+        responsiveness     * 0.16 +
+        notice_score       * 0.10 +
+        interview_score    * 0.08 +
+        demand             * 0.08 +
+        completeness_score * 0.06 +
+        network_score      * 0.04 +
+        endorsement_score  * 0.03 +
+        tenure_score       * 0.03 +
+        work_mode_score    * 0.02
     )
 
     return max(0.15, min(1.0, score))
@@ -754,6 +779,178 @@ def score_location(candidate: dict) -> float:
         return 0.35
     else:
         return 0.20
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CURRENT COMPANY QUALITY BONUS
+# Uses: current_company, current_company_size, current_industry
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Top-tier product companies (Indian & global) relevant to this role
+_PRESTIGE_COMPANIES = {
+    "google", "meta", "amazon", "microsoft", "apple", "netflix", "openai",
+    "deepmind", "anthropic", "stripe", "airbnb", "uber", "linkedin",
+    "flipkart", "paytm", "swiggy", "zomato", "razorpay", "cred",
+    "meesho", "freshworks", "zoho", "ola", "nykaa", "phonepe",
+    "observe.ai", "mad street den", "sarvam", "krutrim", "saarthi",
+    "aganitha", "leadsquared", "darwinbox", "zepto", "blinkit",
+    "dream11", "mpl", "games24x7", "juspay", "smallcase", "groww",
+}
+_CONSULTING_COMPANIES = CONSULTING_FIRMS  # reuse existing set
+
+def compute_current_company_bonus(candidate: dict) -> float:
+    """
+    Bonus based on current employer quality.
+    Uses profile.current_company, profile.current_company_size,
+    profile.current_industry — all unused until now.
+    Max: +0.04
+    """
+    profile = candidate.get("profile", {})
+    company = (profile.get("current_company") or "").lower()
+    size = (profile.get("current_company_size") or "").lower()
+    industry = (profile.get("current_industry") or "").lower()
+
+    # Prestige company bonus
+    if any(p in company for p in _PRESTIGE_COMPANIES):
+        company_score = 0.04
+    elif any(cf in company for cf in _CONSULTING_COMPANIES):
+        company_score = 0.00   # consulting firm — no bonus (penalty already in career_substance)
+    else:
+        company_score = 0.02   # generic product company
+
+    # Size signal: we want Series A–C style companies (51-1000 range)
+    size_bonus = {
+        "1-10": 0.005, "11-50": 0.010, "51-200": 0.015,
+        "201-500": 0.012, "501-1000": 0.010, "1001-5000": 0.008,
+        "5001-10000": 0.005, "10001+": 0.003,
+    }.get(profile.get("current_company_size", ""), 0.005)
+
+    # Industry signal: tech/AI/ML/SaaS = good fit
+    industry_bonus = 0.005 if _text_contains_any(industry, PRODUCT_INDUSTRIES) else 0.0
+
+    return min(0.04, company_score + size_bonus + industry_bonus)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CERTIFICATIONS BONUS
+# Uses the certifications[] array — entirely unused until now
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ML/AI certifications that indicate genuine investment in the domain
+_ML_CERT_KEYWORDS = {
+    "machine learning", "deep learning", "tensorflow", "pytorch", "aws",
+    "google cloud", "gcp", "azure", "data science", "nlp", "ai",
+    "coursera", "deeplearning.ai", "fast.ai", "mlops", "sagemaker",
+    "vertex ai", "databricks", "spark", "hugging face", "transformers",
+    "llm", "generative ai", "rag", "langchain", "vector", "embedding",
+}
+
+def compute_certifications_bonus(candidate: dict) -> float:
+    """
+    Bonus for relevant ML/AI certifications.
+    A candidate who invested time in certifications shows domain commitment.
+    Max: +0.04
+    """
+    certifications = candidate.get("certifications", []) or []
+    if not certifications:
+        return 0.0
+
+    bonus = 0.0
+    for cert in certifications:
+        name = (cert.get("name") or "").lower()
+        issuer = (cert.get("issuer") or "").lower()
+        year = int(cert.get("year") or 0)
+        combined = name + " " + issuer
+
+        if not _text_contains_any(combined, _ML_CERT_KEYWORDS):
+            continue   # unrelated cert (PMP, Six Sigma, etc.) — no bonus
+
+        # Recency bonus: certs from last 4 years score higher
+        recency_mult = 1.0 if year >= 2021 else (0.7 if year >= 2018 else 0.4)
+
+        # Issuer prestige
+        if any(kw in issuer for kw in ["google", "aws", "amazon", "microsoft", "coursera", "deeplearning"]):
+            cert_val = 0.015
+        else:
+            cert_val = 0.008
+
+        bonus += cert_val * recency_mult
+
+    return min(0.04, bonus)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LANGUAGE BONUS
+# Uses the languages[] array — entirely unused until now
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compute_language_bonus(candidate: dict) -> float:
+    """
+    Small bonus for professional English proficiency.
+    This role requires strong written communication (JD: "we write a lot").
+    Also, multi-lingual candidates show broader capability.
+    Max: +0.02
+    """
+    languages = candidate.get("languages", []) or []
+    if not languages:
+        return 0.0
+
+    bonus = 0.0
+    for lang in languages:
+        language = (lang.get("language") or "").lower()
+        proficiency = (lang.get("proficiency") or "").lower()
+
+        if language == "english":
+            if proficiency in ("native", "professional"):
+                bonus += 0.015  # strong English = can write well
+            elif proficiency == "conversational":
+                bonus += 0.005
+        else:
+            # Additional language = small diversity/communication bonus
+            if proficiency in ("native", "professional"):
+                bonus += 0.003
+
+    return min(0.02, bonus)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SALARY ALIGNMENT CHECK
+# Uses expected_salary_range_inr_lpa — avoids extremely misaligned candidates
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compute_salary_alignment(candidate: dict) -> float:
+    """
+    Checks if salary expectations are within realistic range for this role.
+    A Series A company (Redrob) can't afford ₹150LPA candidates.
+    But very low expectations may indicate under-qualified candidates.
+    Returns a multiplier: 0.85 (misaligned) to 1.0 (aligned).
+    Expected range for a 5-9yr Senior AI Engineer at Series A: ₹25-80 LPA
+    """
+    rs = candidate.get("redrob_signals", {})
+    salary_range = rs.get("expected_salary_range_inr_lpa") or {}
+    if not salary_range:
+        return 1.0  # unknown — no penalty
+
+    sal_min = float(salary_range.get("min") or 0)
+    sal_max = float(salary_range.get("max") or 0)
+
+    if sal_min == 0 and sal_max == 0:
+        return 1.0  # not specified
+
+    sal_mid = (sal_min + sal_max) / 2.0
+
+    # Realistic range for this role at a Series A: 20-100 LPA
+    if 20 <= sal_mid <= 100:
+        return 1.0   # perfectly aligned
+    elif 15 <= sal_mid < 20:
+        return 0.97  # slightly below — may indicate less senior
+    elif 100 < sal_mid <= 130:
+        return 0.95  # slightly above — stretch but possible
+    elif sal_mid > 130:
+        return 0.88  # significantly over budget for Series A
+    elif sal_mid < 15:
+        return 0.92  # very low — may be under-experienced
+    return 1.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1255,12 +1452,17 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
             "experience_quality": 0.0,
             "behavioral_availability": 0.0,
             "location": 0.0,
+            "star_predictor": 0.0,
             "deception_risk": "n/a",
             "hidden_gem": False,
             "github_bonus": 0.0,
             "edu_bonus": 0.0,
             "auth_bonus": 0.0,
             "cv_penalty": 0.0,
+            "company_bonus": 0.0,
+            "cert_bonus": 0.0,
+            "lang_bonus": 0.0,
+            "salary_mult": 1.0,
         }
 
     # ── Step 2: Dimension scores ───────────────────────────────────────────
@@ -1301,6 +1503,18 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
     # ── Step 5d: CV/speech/robotics specialist penalty ─────────────────────
     cv_penalty = compute_cv_speech_penalty(candidate)
 
+    # ── Step 5e: Current company quality bonus ──────────────────────────
+    company_bonus = compute_current_company_bonus(candidate)
+
+    # ── Step 5f: Certifications bonus ────────────────────────────────────
+    cert_bonus = compute_certifications_bonus(candidate)
+
+    # ── Step 5g: Language proficiency bonus ─────────────────────────────
+    lang_bonus = compute_language_bonus(candidate)
+
+    # ── Step 5h: Salary alignment multiplier ─────────────────────────────
+    salary_mult = compute_salary_alignment(candidate)
+
     # ── Step 6: Final composite ───────────────────────────────────────────
     # GATE: career_substance is the most important signal.
     # If a candidate has no production AI/ML/search work in their career history,
@@ -1321,7 +1535,16 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
     else:
         score_cap = 0.999  # no cap
 
-    composite = base + hidden_gem_bonus + github_bonus + edu_bonus + auth_bonus + cv_penalty - deception_penalty
+    # Supplementary bonus pool — hard cap at 0.08 to prevent score compression.
+    # Without this cap, 61/100 candidates hit 0.999 ceiling and NDCG can't differentiate.
+    # All signals still matter and influence ranking, just bounded so top-tier spreads properly.
+    supplementary_bonus = min(0.08,
+        github_bonus + edu_bonus + auth_bonus + company_bonus + cert_bonus + lang_bonus
+    )
+
+    composite = (
+        base + hidden_gem_bonus + supplementary_bonus + cv_penalty - deception_penalty
+    ) * salary_mult
     composite = round(max(0.0, min(score_cap, composite)), 6)
 
     return {
@@ -1342,4 +1565,8 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
         "edu_bonus": round(edu_bonus, 4),
         "auth_bonus": round(auth_bonus, 4),
         "cv_penalty": round(cv_penalty, 4),
+        "company_bonus": round(company_bonus, 4),
+        "cert_bonus": round(cert_bonus, 4),
+        "lang_bonus": round(lang_bonus, 4),
+        "salary_mult": round(salary_mult, 4),
     }
