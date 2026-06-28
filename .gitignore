@@ -1,15 +1,66 @@
+# ─── Large dataset files ───────────────────────────────────────────────────
 data/candidates.jsonl
 data/candidates.jsonl.gz
-outputs/*.csv
-# Allow the submission file to be committed
-!outputs/submission.csv
 
+# ─── Output files — only keep the submission CSV ───────────────────────────
+outputs/*.csv
+!outputs/submission.csv
+outputs/cohort_report.json
+outputs/*.docx
+outputs/*.pdf
+outputs/*_test.csv
+outputs/top100_test.csv
+outputs/sample_test.csv
+
+# ─── Python cache ──────────────────────────────────────────────────────────
 __pycache__/
-rank/__pycache__/
-demo/__pycache__/
-precompute/__pycache__/
+*/__pycache__/
+**/__pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# ─── Virtual environments ───────────────────────────────────────────────────
 .venv/
 venv/
+env/
+
+# ─── Build / packaging ─────────────────────────────────────────────────────
 *.egg-info/
+dist/
+build/
+
+# ─── Secrets ───────────────────────────────────────────────────────────────
 .streamlit/secrets.toml
+*.env
+.env
+
+# ─── Local / personal files (keep locally, never push) ────────────────────
+A_to_Z_Guide.md
+HF_README.md
+redrob_qa_report.html
+cohort_report.json
+submission.csv          # root-level duplicate
+jd_text.txt
+submission_spec_text.txt
+
+# ─── One-off scripts / dev tooling ────────────────────────────────────────
+analyze_csv.py
+check_reasoning.py
+fix_unicode.py
+run_tests.py
+test_sample.py
+
+# ─── Duplicate deployment folder (HF has its own sync) ────────────────────
+hf_deploy/
+
+# ─── Presentation / PPTX (not code) ───────────────────────────────────────
+*.pptx
+deck/
+
+# ─── Artifacts (internal analysis, not for judges) ────────────────────────
+artifacts/
+precompute/
+
+# ─── Data folder (local sample data only) ─────────────────────────────────
+data/
