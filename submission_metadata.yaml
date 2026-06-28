@@ -45,6 +45,7 @@ compute:
 # ============================================================================
 ai_tools_used:
   - "Gemini"     # Used for architecture discussion, code generation, debugging
+  - "Claude"     # Used for code review, debugging, scoring logic refinement
 
 ai_usage_summary: |
   Used Gemini (Google) as a coding assistant for architecture design, code

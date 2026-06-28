@@ -914,6 +914,138 @@ def compute_github_bonus(candidate: dict) -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# EDUCATION TIER BONUS
+# Uses the schema's built-in `tier` field (tier_1 / tier_2 / tier_3 / tier_4)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compute_education_bonus(candidate: dict) -> float:
+    """
+    Bonus for elite institution tier.
+    Schema provides tier_1/tier_2/tier_3/tier_4 directly — no string matching needed.
+    Also considers field_of_study (CS/ML/Stats = good) and degree level.
+    Max bonus: +0.06
+    """
+    education = candidate.get("education", [])
+    if not education:
+        return 0.0
+
+    TIER_BONUS = {"tier_1": 0.06, "tier_2": 0.03, "tier_3": 0.01, "tier_4": 0.0, "unknown": 0.0}
+    CS_FIELDS = {
+        "computer science", "computer engineering", "information technology",
+        "software engineering", "machine learning", "artificial intelligence",
+        "data science", "statistics", "mathematics", "electrical engineering",
+        "electronics", "information systems",
+    }
+    ADVANCED_DEGREES = {"m.tech", "mtech", "m.s", "ms ", "ms.", "phd", "ph.d", "m.e", "mba"}
+
+    best_bonus = 0.0
+    for edu in education:
+        tier = (edu.get("tier") or "unknown").lower()
+        field = (edu.get("field_of_study") or "").lower()
+        degree = (edu.get("degree") or "").lower()
+
+        tier_val = TIER_BONUS.get(tier, 0.0)
+        # CS/ML field multiplier
+        field_mult = 1.2 if any(f in field for f in CS_FIELDS) else 0.8
+        # Advanced degree small boost
+        degree_mult = 1.1 if any(d in degree for d in ADVANCED_DEGREES) else 1.0
+
+        bonus = tier_val * field_mult * degree_mult
+        best_bonus = max(best_bonus, bonus)
+
+    return min(0.06, best_bonus)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PROFILE AUTHENTICITY & OFFER SERIOUSNESS BONUS
+# Uses: offer_acceptance_rate, verified_email, verified_phone, linkedin_connected
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compute_authenticity_bonus(candidate: dict) -> float:
+    """
+    Small bonus for verifiable, authentic, serious candidates.
+    Max: +0.03 (keeps the signal modest — authenticity is table stakes, not a differentiator)
+    """
+    rs = candidate.get("redrob_signals", {})
+
+    # Offer acceptance rate: high rate = serious candidate who follows through
+    oar = float(rs.get("offer_acceptance_rate", -1) if rs.get("offer_acceptance_rate") is not None else -1)
+    if oar >= 0.80:
+        offer_score = 0.015
+    elif oar >= 0.60:
+        offer_score = 0.010
+    elif oar == -1:  # no history — neutral
+        offer_score = 0.007
+    elif oar >= 0.30:
+        offer_score = 0.004
+    else:
+        offer_score = 0.0  # consistently declines offers
+
+    # Profile verification (each is a small authenticity signal)
+    verified_email = bool(rs.get("verified_email", False))
+    verified_phone = bool(rs.get("verified_phone", False))
+    linkedin_connected = bool(rs.get("linkedin_connected", False))
+    verification_score = (
+        (0.005 if verified_email else 0.0) +
+        (0.005 if verified_phone else 0.0) +
+        (0.005 if linkedin_connected else 0.0)
+    )
+
+    return min(0.03, offer_score + verification_score)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CV / SPEECH / ROBOTICS SPECIALIST DETECTION
+# JD explicitly says: "primary expertise in CV/speech/robotics without NLP/IR = disqualifier"
+# ─────────────────────────────────────────────────────────────────────────────
+
+CV_SPECIALTY_SIGNALS = {
+    "computer vision", "object detection", "image segmentation", "image classification",
+    "object recognition", "convolutional", "cnn", "yolo", "opencv", "image processing",
+    "medical imaging", "satellite imagery", "video analysis",
+}
+SPEECH_SPECIALTY_SIGNALS = {
+    "speech recognition", "asr", "text-to-speech", "tts", "speaker recognition",
+    "voice recognition", "automatic speech", "kaldi", "wav2vec",
+}
+ROBOTICS_SPECIALTY_SIGNALS = {
+    "robotics", "ros", "robot operating", "autonomous vehicle", "slam", "lidar",
+    "sensor fusion", "motion planning", "actuator", "drone",
+}
+NLP_IR_COUNTER_SIGNALS = {
+    "nlp", "natural language", "text", "retrieval", "search", "ranking",
+    "recommendation", "language model", "llm", "bert", "transformer",
+    "embedding", "sentiment", "ner", "named entity",
+}
+
+
+def compute_cv_speech_penalty(candidate: dict) -> float:
+    """
+    Penalty for candidates whose expertise is PRIMARILY in CV/speech/robotics
+    WITHOUT any NLP/IR exposure.
+    JD: these people would be 're-learning fundamentals' for this role.
+    Returns a negative adjustment (0.0 = no penalty, -0.15 = max penalty).
+    """
+    text = _build_text_blob(candidate)
+
+    cv_hits = sum(1 for s in CV_SPECIALTY_SIGNALS if s in text)
+    speech_hits = sum(1 for s in SPEECH_SPECIALTY_SIGNALS if s in text)
+    robotics_hits = sum(1 for s in ROBOTICS_SPECIALTY_SIGNALS if s in text)
+    nlp_hits = sum(1 for s in NLP_IR_COUNTER_SIGNALS if s in text)
+
+    wrong_domain_hits = cv_hits + speech_hits + robotics_hits
+
+    # Only penalize if strong wrong-domain signal AND weak NLP/IR signal
+    if wrong_domain_hits >= 4 and nlp_hits <= 2:
+        # Strong CV/speech/robotics specialist without NLP crossover
+        return -0.12
+    elif wrong_domain_hits >= 2 and nlp_hits == 0:
+        # Moderate specialist with zero NLP signal
+        return -0.06
+    return 0.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # DIMENSION F: STAR PREDICTOR  (weight 0.07)
 # Learning velocity and scope expansion across the career arc.
 # This is NOT the same as years_of_experience.
@@ -1126,6 +1258,9 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
             "deception_risk": "n/a",
             "hidden_gem": False,
             "github_bonus": 0.0,
+            "edu_bonus": 0.0,
+            "auth_bonus": 0.0,
+            "cv_penalty": 0.0,
         }
 
     # ── Step 2: Dimension scores ───────────────────────────────────────────
@@ -1157,6 +1292,15 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
     # ── Step 5: GitHub bonus ───────────────────────────────────────────────
     github_bonus = compute_github_bonus(candidate)
 
+    # ── Step 5b: Education tier bonus ─────────────────────────────────────
+    edu_bonus = compute_education_bonus(candidate)
+
+    # ── Step 5c: Profile authenticity + offer seriousness bonus ───────────
+    auth_bonus = compute_authenticity_bonus(candidate)
+
+    # ── Step 5d: CV/speech/robotics specialist penalty ─────────────────────
+    cv_penalty = compute_cv_speech_penalty(candidate)
+
     # ── Step 6: Final composite ───────────────────────────────────────────
     # GATE: career_substance is the most important signal.
     # If a candidate has no production AI/ML/search work in their career history,
@@ -1177,7 +1321,7 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
     else:
         score_cap = 0.999  # no cap
 
-    composite = base + hidden_gem_bonus + github_bonus - deception_penalty
+    composite = base + hidden_gem_bonus + github_bonus + edu_bonus + auth_bonus + cv_penalty - deception_penalty
     composite = round(max(0.0, min(score_cap, composite)), 6)
 
     return {
@@ -1195,4 +1339,7 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
         "deception_flags": deception["flags"],
         "hidden_gem": is_hidden_gem,
         "github_bonus": round(github_bonus, 4),
+        "edu_bonus": round(edu_bonus, 4),
+        "auth_bonus": round(auth_bonus, 4),
+        "cv_penalty": round(cv_penalty, 4),
     }
