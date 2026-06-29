@@ -141,28 +141,61 @@ def _count_matches(text: str, token_set: set) -> int:
     return sum(1 for tok in token_set if tok in t)
 
 
+def _safe_list(val) -> list:
+    """Always returns a list — handles None, strings, or other wrong types."""
+    if isinstance(val, list):
+        return val
+    return []  # None, strings, ints, dicts all become empty list
+
+
+def _safe_dict(val) -> dict:
+    """Always returns a dict — handles None or wrong types."""
+    if isinstance(val, dict):
+        return val
+    return {}
+
+
+def _safe_num(val, default=0) -> float:
+    """Always returns a float — handles None, strings, or invalid types."""
+    try:
+        result = float(val)
+        return result if math.isfinite(result) else float(default)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _safe_str(val, default="") -> str:
+    """Always returns a str — handles None or non-string types."""
+    if val is None:
+        return default
+    try:
+        return str(val)
+    except Exception:
+        return default
+
+
 def _build_text_blob(candidate: dict) -> str:
     """Build a single lowercase blob of all text in a candidate profile."""
-    parts: list[str] = []
-    p = candidate.get("profile", {})
-    parts.append(p.get("headline", ""))
-    parts.append(p.get("summary", ""))
-    parts.append(p.get("current_title", ""))
-    for ch in candidate.get("career_history", []):
-        parts.append(ch.get("title", ""))
-        parts.append(ch.get("description", ""))
-        parts.append(ch.get("company", ""))
-    for sk in candidate.get("skills", []):
-        parts.append(sk.get("name", ""))
+    parts: list = []
+    p = _safe_dict(candidate.get("profile"))
+    parts.append(_safe_str(p.get("headline")))
+    parts.append(_safe_str(p.get("summary")))
+    parts.append(_safe_str(p.get("current_title")))
+    for ch in _safe_list(candidate.get("career_history")):
+        parts.append(_safe_str(ch.get("title")))
+        parts.append(_safe_str(ch.get("description")))
+        parts.append(_safe_str(ch.get("company")))
+    for sk in _safe_list(candidate.get("skills")):
+        parts.append(_safe_str(sk.get("name")))
     return " ".join(parts).lower()
 
 
 def _build_career_text(candidate: dict) -> str:
     """Career descriptions + titles only — harder to keyword-stuff than skills."""
-    parts: list[str] = []
-    for ch in candidate.get("career_history", []):
-        parts.append(ch.get("title", ""))
-        parts.append(ch.get("description", ""))
+    parts: list = []
+    for ch in _safe_list(candidate.get("career_history")):
+        parts.append(_safe_str(ch.get("title")))
+        parts.append(_safe_str(ch.get("description")))
     return " ".join(parts).lower()
 
 
@@ -178,10 +211,10 @@ def detect_honeypot(candidate: dict) -> Tuple[bool, str]:
     These rules are intentionally strict — ~80 honeypots in 100K candidates means
     we expect <0.1% false positives.
     """
-    profile = candidate.get("profile", {})
+    profile = _safe_dict(candidate.get("profile"))
     career = candidate.get("career_history", [])
-    skills = candidate.get("skills", [])
-    yoe = float(profile.get("years_of_experience", 0) or 0)
+    skills = _safe_list(candidate.get("skills"))
+    yoe = _safe_num(profile.get("years_of_experience"), 0)
     yoe_months = yoe * 12
 
     # Rule 1: Total consecutive career duration massively exceeds stated YoE.
@@ -195,7 +228,7 @@ def detect_honeypot(candidate: dict) -> Tuple[bool, str]:
 
     # Rule 2: ≥3 expert-proficiency skills with 0 duration_months.
     zero_dur_experts = [
-        s["name"] for s in skills
+        s.get("name", "unknown") for s in skills
         if s.get("proficiency") == "expert" and int(s.get("duration_months", 0) or 0) == 0
     ]
     if len(zero_dur_experts) >= 3:
@@ -261,11 +294,11 @@ def score_career_substance(candidate: dict) -> float:
     5. Career description as secondary signal
     """
     career = candidate.get("career_history", [])
-    profile = candidate.get("profile", {})
+    profile = _safe_dict(candidate.get("profile"))
     if not career:
         return 0.0
 
-    current_title = profile.get("current_title", "").lower()
+    current_title = _safe_str(profile.get("current_title")).lower()
     if _text_contains_any(current_title, HARD_NEGATIVE_TITLE_TOKENS):
         return 0.04
 
@@ -347,8 +380,8 @@ def score_career_substance(candidate: dict) -> float:
             product_company_score += 0.25
 
     # ── Signal 3: High-quality skills (endorsements + duration) ─────────────
-    skills = candidate.get("skills", [])
-    rs = candidate.get("redrob_signals", {})
+    skills = _safe_list(candidate.get("skills"))
+    rs = _safe_dict(candidate.get("redrob_signals"))
     assessments = rs.get("skill_assessment_scores", {}) or {}
 
     high_quality_ai_skills = 0.0
@@ -433,7 +466,7 @@ def score_skill_credibility(candidate: dict) -> float:
     
     This prevents keyword stuffers from winning.
     """
-    skills = candidate.get("skills", [])
+    skills = _safe_list(candidate.get("skills"))
     career_text = _build_career_text(candidate)
     signals = candidate.get("redrob_signals", {})
 
@@ -488,7 +521,7 @@ def score_skill_credibility(candidate: dict) -> float:
         )
 
         for skill in skills:
-            sname = skill.get("name", "").lower()
+            sname = _safe_str(skill.get("name")).lower()
             # Does this skill match the family?
             if not any(kw in sname or sname in kw for kw in family_def["keywords"]):
                 continue
@@ -566,9 +599,9 @@ def score_experience_quality(candidate: dict) -> float:
     Evaluates whether the AMOUNT and TYPE of experience fits the role.
     JD wants 5-9 years, product company, production systems.
     """
-    profile = candidate.get("profile", {})
+    profile = _safe_dict(candidate.get("profile"))
     career = candidate.get("career_history", [])
-    yoe = float(profile.get("years_of_experience", 0) or 0)
+    yoe = _safe_num(profile.get("years_of_experience"), 0)
 
     # YoE fit — JD says 5-9 but notes it's a range
     if 5 <= yoe <= 9:
@@ -654,7 +687,7 @@ def score_behavioral_availability(candidate: dict) -> float:
     Uses all 23 redrob_signals fields — none left on the table.
     Range: 0.15 (completely unreachable) to 1.0 (actively looking, responsive).
     """
-    rs = candidate.get("redrob_signals", {})
+    rs = _safe_dict(candidate.get("redrob_signals"))
 
     # ── Signal 1: Last active date (recency) ─────────────────────────────────
     days_inactive = _days_since(str(rs.get("last_active_date", "2020-01-01") or "2020-01-01"))
@@ -672,8 +705,8 @@ def score_behavioral_availability(candidate: dict) -> float:
     activity = open_to_work * 0.65 + apps_submitted * 0.35
 
     # ── Signal 3: Recruiter responsiveness ───────────────────────────────────
-    rrr = float(rs.get("recruiter_response_rate", 0.3) or 0.3)
-    resp_hours = float(rs.get("avg_response_time_hours", 72) or 72)
+    rrr = _safe_num(rs.get("recruiter_response_rate"), 0.3)
+    resp_hours = _safe_num(rs.get("avg_response_time_hours"), 72)
     if rrr >= 0.70 and resp_hours <= 24:  responsiveness = 1.0
     elif rrr >= 0.50:                     responsiveness = 0.80
     elif rrr >= 0.30:                     responsiveness = 0.60
@@ -685,7 +718,7 @@ def score_behavioral_availability(candidate: dict) -> float:
     interview_score = 0.3 + icr * 0.7
 
     # ── Signal 5: Notice period ───────────────────────────────────────────────
-    notice = int(rs.get("notice_period_days", 90) or 90)
+    notice = int(_safe_num(rs.get("notice_period_days"), 90))
     if notice <= 15:    notice_score = 1.0
     elif notice <= 30:  notice_score = 0.95
     elif notice <= 60:  notice_score = 0.80
@@ -702,19 +735,19 @@ def score_behavioral_availability(candidate: dict) -> float:
     views = float(rs.get("profile_views_received_30d", 0) or 0)
     appearances = float(rs.get("search_appearance_30d", 0) or 0)
     # Log-scale demand: each signal independently contributes
-    demand_saved = min(1.0, math.log1p(saved) / math.log1p(15))
-    demand_views = min(1.0, math.log1p(views) / math.log1p(50))
-    demand_appearances = min(1.0, math.log1p(appearances) / math.log1p(100))
+    demand_saved = min(1.0, math.log1p(max(0, saved)) / math.log1p(15))
+    demand_views = min(1.0, math.log1p(max(0, views)) / math.log1p(50))
+    demand_appearances = min(1.0, math.log1p(max(0, appearances)) / math.log1p(100))
     demand = demand_saved * 0.50 + demand_views * 0.30 + demand_appearances * 0.20
 
     # ── Signal 8: Network strength (connection_count) ────────────────────────
     # A well-networked candidate is more visible and credible
     connections = float(rs.get("connection_count", 0) or 0)
-    network_score = min(1.0, math.log1p(connections) / math.log1p(500))
+    network_score = min(1.0, math.log1p(max(0, connections)) / math.log1p(500))
 
     # ── Signal 9: Total endorsements received (platform-wide trust signal) ───
     total_endorsements = float(rs.get("endorsements_received", 0) or 0)
-    endorsement_score = min(1.0, math.log1p(total_endorsements) / math.log1p(200))
+    endorsement_score = min(1.0, math.log1p(max(0, total_endorsements)) / math.log1p(200))
 
     # ── Signal 10: Platform tenure (signup_date) ──────────────────────────────
     # Longer tenure = committed platform user (not a new account created to spam)
@@ -762,8 +795,8 @@ def score_behavioral_availability(candidate: dict) -> float:
 
 def score_location(candidate: dict) -> float:
     """Location scoring — Pune/Noida preferred, all Tier-1 cities acceptable."""
-    profile = candidate.get("profile", {})
-    rs = candidate.get("redrob_signals", {})
+    profile = _safe_dict(candidate.get("profile"))
+    rs = _safe_dict(candidate.get("redrob_signals"))
 
     location = str(profile.get("location", "") or "").lower()
     country = str(profile.get("country", "") or "").lower()
@@ -805,7 +838,7 @@ def compute_current_company_bonus(candidate: dict) -> float:
     profile.current_industry — all unused until now.
     Max: +0.04
     """
-    profile = candidate.get("profile", {})
+    profile = _safe_dict(candidate.get("profile"))
     company = (profile.get("current_company") or "").lower()
     size = (profile.get("current_company_size") or "").lower()
     industry = (profile.get("current_industry") or "").lower()
@@ -926,7 +959,7 @@ def compute_salary_alignment(candidate: dict) -> float:
     Returns a multiplier: 0.85 (misaligned) to 1.0 (aligned).
     Expected range for a 5-9yr Senior AI Engineer at Series A: ₹25-80 LPA
     """
-    rs = candidate.get("redrob_signals", {})
+    rs = _safe_dict(candidate.get("redrob_signals"))
     salary_range = rs.get("expected_salary_range_inr_lpa") or {}
     if not salary_range:
         return 1.0  # unknown — no penalty
@@ -968,8 +1001,8 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
     3. Career descriptions show production system ownership
     """
     career = candidate.get("career_history", [])
-    profile = candidate.get("profile", {})
-    yoe = float(profile.get("years_of_experience", 0) or 0)
+    profile = _safe_dict(candidate.get("profile"))
+    yoe = _safe_num(profile.get("years_of_experience"), 0)
 
     # Gap between career substance and skill listing — sign of plain-language engineer
     career_skill_gap = career_score - skill_score
@@ -1014,10 +1047,10 @@ def assess_deception_signals(candidate: dict) -> Dict[str, Any]:
     Assesses multiple deception patterns.
     Returns a dict with flags and an overall deception_risk level.
     """
-    profile = candidate.get("profile", {})
+    profile = _safe_dict(candidate.get("profile"))
     career = candidate.get("career_history", [])
-    skills = candidate.get("skills", [])
-    yoe = float(profile.get("years_of_experience", 0) or 0)
+    skills = _safe_list(candidate.get("skills"))
+    yoe = _safe_num(profile.get("years_of_experience"), 0)
 
     flags = []
 
@@ -1065,7 +1098,7 @@ def assess_deception_signals(candidate: dict) -> Dict[str, Any]:
         flags.append(f"timeline_anomaly: career months ({career_months_total}) > stated YoE ({yoe:.0f}y)")
 
     # 5. Keyword-stuffing pattern: current title is clearly non-AI but many AI skills listed
-    current_title = profile.get("current_title", "").lower()
+    current_title = _safe_str(profile.get("current_title")).lower()
     is_non_ai_title = _text_contains_any(current_title, HARD_NEGATIVE_TITLE_TOKENS)
     ai_skill_count = sum(
         1 for s in skills
@@ -1096,7 +1129,7 @@ def assess_deception_signals(candidate: dict) -> Dict[str, Any]:
 
 def compute_github_bonus(candidate: dict) -> float:
     """GitHub activity bonus — real code evidence."""
-    rs = candidate.get("redrob_signals", {})
+    rs = _safe_dict(candidate.get("redrob_signals"))
     github = float(rs.get("github_activity_score", -1) or -1)
     if github < 0:
         return 0.0  # No GitHub — no penalty, no bonus
@@ -1163,7 +1196,7 @@ def compute_authenticity_bonus(candidate: dict) -> float:
     Small bonus for verifiable, authentic, serious candidates.
     Max: +0.03 (keeps the signal modest — authenticity is table stakes, not a differentiator)
     """
-    rs = candidate.get("redrob_signals", {})
+    rs = _safe_dict(candidate.get("redrob_signals"))
 
     # Offer acceptance rate: high rate = serious candidate who follows through
     oar = float(rs.get("offer_acceptance_rate", -1) if rs.get("offer_acceptance_rate") is not None else -1)
@@ -1282,11 +1315,11 @@ def score_star_predictor(candidate: dict) -> float:
     Returns 0.0 (stagnated) → 1.0 (strong upward arc across all dimensions).
     """
     career = candidate.get("career_history", [])
-    profile = candidate.get("profile", {})
+    profile = _safe_dict(candidate.get("profile"))
 
     if len(career) < 2:
         # Only one role: use YoE + current title level as proxy
-        yoe = float(profile.get("years_of_experience", 0) or 0)
+        yoe = _safe_num(profile.get("years_of_experience"), 0)
         title = profile.get("current_title", "") or ""
         level = _title_seniority(title)
         return min(0.5, (level / 6.0) * 0.5 + min(0.25, yoe / 20.0))
@@ -1485,7 +1518,8 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
 
     # ── Step 3: Deception assessment ──────────────────────────────────────
     deception = assess_deception_signals(candidate)
-    deception_penalty = DECEPTION_PENALTIES.get(deception["deception_risk"], 0.0)
+    deception_risk_level = deception.get("deception_risk", "low")
+    deception_penalty = DECEPTION_PENALTIES.get(deception_risk_level, 0.0)
 
     # ── Step 4: Hidden gem detection ──────────────────────────────────────
     is_hidden_gem = detect_hidden_gem(candidate, career_score, skill_score)
@@ -1558,8 +1592,8 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
         "behavioral_availability": round(avail_score, 4),
         "star_predictor": round(star_score, 4),
         "location": round(loc_score, 4),
-        "deception_risk": deception["deception_risk"],
-        "deception_flags": deception["flags"],
+        "deception_risk": deception.get("deception_risk", "low"),
+        "deception_flags": deception.get("flags", []),
         "hidden_gem": is_hidden_gem,
         "github_bonus": round(github_bonus, 4),
         "edu_bonus": round(edu_bonus, 4),
