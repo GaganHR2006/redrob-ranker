@@ -884,7 +884,7 @@ def compute_certifications_bonus(candidate: dict) -> float:
     A candidate who invested time in certifications shows domain commitment.
     Max: +0.04
     """
-    certifications = candidate.get("certifications", []) or []
+    certifications = _safe_list(candidate.get("certifications"))
     if not certifications:
         return 0.0
 
@@ -924,7 +924,7 @@ def compute_language_bonus(candidate: dict) -> float:
     Also, multi-lingual candidates show broader capability.
     Max: +0.02
     """
-    languages = candidate.get("languages", []) or []
+    languages = _safe_list(candidate.get("languages"))
     if not languages:
         return 0.0
 
@@ -1102,7 +1102,7 @@ def assess_deception_signals(candidate: dict) -> Dict[str, Any]:
     is_non_ai_title = _text_contains_any(current_title, HARD_NEGATIVE_TITLE_TOKENS)
     ai_skill_count = sum(
         1 for s in skills
-        if _text_contains_any(s.get("name", ""), PRODUCTION_RETRIEVAL_SIGNALS)
+        if _text_contains_any(_safe_str(s.get("name")), PRODUCTION_RETRIEVAL_SIGNALS)
     )
     if is_non_ai_title and ai_skill_count >= 5:
         flags.append(f"keyword_stuffing: non-AI title ('{current_title}') with {ai_skill_count} AI/ML skills listed")
@@ -1155,7 +1155,7 @@ def compute_education_bonus(candidate: dict) -> float:
     Also considers field_of_study (CS/ML/Stats = good) and degree level.
     Max bonus: +0.06
     """
-    education = candidate.get("education", [])
+    education = _safe_list(candidate.get("education"))
     if not education:
         return 0.0
 
