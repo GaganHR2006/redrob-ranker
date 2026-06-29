@@ -745,8 +745,7 @@ def main():
         
         st.divider()
         st.markdown("**Try without uploading:**")
-        use_sample = st.button("Load sample_candidates.json")
-        use_top100 = st.button("Load Top 100 Ranked Candidates")
+        use_top100 = st.button("🏆 Load Top 100 Ranked Candidates", type="primary")
         
         st.divider()
         st.markdown("**About this system:**")
@@ -784,40 +783,51 @@ def main():
             st.error(f"Error parsing JSON/JSONL: {e}")
             return
     
-    elif use_sample:
-        # Try data/ first, then repo root (handles both local and HF Space layouts)
-        sample_path = Path(__file__).parent.parent / "candidates.jsonl"
-        if sample_path.exists():
-            # Try to read as jsonl
-            try:
-                with open(sample_path, encoding="utf-8") as f:
-                    data = []
-                    for line in f:
-                        if line.strip(): data.append(json.loads(line))
-                st.session_state.candidates_data = data
-            except:
-                st.error("Failed to parse candidates.jsonl")
-            st.sidebar.success(f"Loaded {len(st.session_state.candidates_data)} sample candidates")
-        else:
-            st.error("candidates.jsonl not found in repo root. Please upload a JSONL file via the uploader above.")
-            return
-            
     elif use_top100:
-        top100_path = Path(__file__).parent.parent / "data" / "top_100_candidates.json"
-        if not top100_path.exists():
-            top100_path = Path(__file__).parent.parent / "top_100_candidates.json"
-        if top100_path.exists():
+        # Look for top_100_candidates.json in multiple locations
+        search_paths = [
+            Path(__file__).parent.parent / "data" / "top_100_candidates.json",
+            Path(__file__).parent.parent / "top_100_candidates.json",
+            Path(__file__).parent.parent / "outputs" / "top_100_candidates.json",
+            Path(__file__).parent / "top_100_candidates.json",
+        ]
+        top100_path = next((p for p in search_paths if p.exists()), None)
+        if top100_path:
             with open(top100_path, encoding="utf-8") as f:
                 st.session_state.candidates_data = json.load(f)
-            st.sidebar.success(f"Loaded {len(st.session_state.candidates_data)} top candidates")
+            st.sidebar.success(f"Loaded {len(st.session_state.candidates_data)} top-ranked candidates")
         else:
-            st.error("top_100_candidates.json not found. Please generate it first.")
-            return
+            # Fall back: try outputs/submission.csv and parse it
+            csv_path = Path(__file__).parent.parent / "outputs" / "submission.csv"
+            if csv_path.exists():
+                import csv as csv_mod
+                with open(csv_path, encoding="utf-8") as f:
+                    reader = csv_mod.DictReader(f)
+                    rows = list(reader)
+                # Build minimal candidate dicts from CSV columns
+                data = []
+                for row in rows:
+                    data.append({
+                        "candidate_id": row.get("candidate_id", ""),
+                        "profile": {
+                            "current_title": row.get("current_title", ""),
+                            "location": row.get("location", ""),
+                            "years_of_experience": row.get("years_of_experience", 0),
+                        },
+                        "_from_csv": True,
+                        "_score": float(row.get("score", 0) or 0),
+                        "_reasoning": row.get("reasoning", ""),
+                    })
+                st.session_state.candidates_data = data
+                st.sidebar.success(f"Loaded {len(data)} candidates from submission CSV")
+            else:
+                st.error("No candidate data found. Please upload a JSON/JSONL file using the uploader above.")
+                return
     
     candidates_data = st.session_state.candidates_data
 
     if candidates_data is None:
-        st.info("Upload a candidates JSON file or click 'Load sample_candidates.json' to get started.")
+        st.info("Upload a candidates JSON/JSONL file above, or click **Load Top 100 Ranked Candidates** to explore the pre-ranked results.")
         
         st.markdown("""
         ### What this system evaluates
