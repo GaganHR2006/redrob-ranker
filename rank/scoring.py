@@ -1048,6 +1048,31 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
         ownership_hits += sum(1 for w in ownership_indicators if w in desc)
         system_hits += sum(1 for w in system_indicators if w in desc)
 
+    # Anti-false-positive: make sure the candidate is in the RIGHT DOMAIN
+    # A Computer Vision or Speech specialist can also have career_score=1.0
+    # because they have strong career titles ("ML Engineer", "AI Engineer") —
+    # but they are NOT a hidden gem for a retrieval/NLP role.
+    # Check: career descriptions OR title must contain at least some required-domain signal
+    wrong_domain_signals = (
+        "computer vision", "cv only", "image recognition", "object detection",
+        "speech recognition", "asr", "tts", "text to speech",
+        "robotics", "ros ", "slam", "lidar",
+    )
+    right_domain_signals = (
+        "retrieval", "search", "recommend", "nlp", "natural language",
+        "ranking", "embedding", "vector", "rag", "language model",
+        "recommendation", "relevance", "semantic",
+    )
+    full_text = " ".join(
+        (ch.get("description", "") or "").lower() for ch in career
+    ) + " " + (profile.get("headline", "") or "").lower()
+    has_wrong_domain = any(s in full_text for s in wrong_domain_signals)
+    has_right_domain = any(s in full_text for s in right_domain_signals)
+
+    # If primarily wrong-domain with no right-domain crossover → not a gem
+    if has_wrong_domain and not has_right_domain:
+        return False
+
     # Criteria: meaningful career score, career-skill gap, ownership evidence, right YoE
     is_gem = (
         career_score >= 0.50 and       # actual strong production evidence in career
@@ -1057,6 +1082,7 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
         system_hits >= 3 and           # builds real systems
         yoe >= 4.0                     # enough experience to be the right hire
     )
+
 
     return is_gem
 

@@ -741,6 +741,9 @@ def main():
     # Resolve active JD config
     if "jd_config" not in st.session_state:
         st.session_state.jd_config = get_default_jd() if get_default_jd else None
+    # Track whether user has EXPLICITLY selected a JD (vs relying on the silent default)
+    if "jd_explicitly_set" not in st.session_state:
+        st.session_state.jd_explicitly_set = False
     jd_cfg = st.session_state.jd_config
     jd_title = (jd_cfg or {}).get("title", "Senior AI Engineer — Founding Team")
     jd_company = (jd_cfg or {}).get("company_name", "")
@@ -801,6 +804,7 @@ def main():
                         st.error(f"❌ {e}")
                 else:
                     st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else None
+                    st.session_state.jd_explicitly_set = True
                     jd_cfg = st.session_state.jd_config
                     st.success(f"✅ JD loaded: **{jd_raw.get('title', 'Custom Role')}**")
                     st.session_state.candidates_data = None  # re-score with new JD
@@ -818,12 +822,14 @@ def main():
                 with open(sample_jd_path, encoding="utf-8") as f:
                     jd_raw = json.load(f)
                 st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else get_default_jd()
+                st.session_state.jd_explicitly_set = True
                 jd_cfg = st.session_state.jd_config
                 st.success("✅ Sample JD loaded: **Senior AI Engineer — Founding Team (Redrob)**")
                 st.session_state.candidates_data = None
             else:
                 # Fallback: use the built-in default
                 st.session_state.jd_config = get_default_jd() if get_default_jd else None
+                st.session_state.jd_explicitly_set = True
                 jd_cfg = st.session_state.jd_config
                 st.success("✅ Default Redrob JD loaded")
                 st.session_state.candidates_data = None
@@ -1055,6 +1061,17 @@ def main():
             return
     
     candidates_data = st.session_state.candidates_data
+    jd_cfg = st.session_state.jd_config  # re-read in case it changed
+
+    # ⚠️ JD transparency banner — show when candidates are loaded but no JD was explicitly chosen
+    if candidates_data is not None and not st.session_state.get("jd_explicitly_set", False):
+        active_jd_title = (jd_cfg or {}).get("title", "Senior AI Engineer — Founding Team")
+        st.warning(
+            f"⚠️ **No JD selected** — ranking candidates using the default JD: "
+            f"*{active_jd_title}*.\n\n"
+            "To rank for a different role, click **📄 Load Sample JD** or "
+            "**Upload JD (JSON)** in the 📋 Job Description section of the sidebar."
+        )
 
     if candidates_data is None:
         st.info(
