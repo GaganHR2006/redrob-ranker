@@ -1048,35 +1048,31 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
         ownership_hits += sum(1 for w in ownership_indicators if w in desc)
         system_hits += sum(1 for w in system_indicators if w in desc)
 
-    # Anti-false-positive: make sure the candidate is in the RIGHT DOMAIN
-    # A Computer Vision or Speech specialist can also have career_score=1.0
-    # because they have strong career titles ("ML Engineer", "AI Engineer") —
-    # but they are NOT a hidden gem for a retrieval/NLP role.
+    # Anti-false-positive: exclude pure CV/Speech specialists from being gems
+    # for an NLP/retrieval role. Counts how many wrong-domain vs right-domain
+    # signals appear across ALL career descriptions.
     wrong_domain_signals = (
-        "computer vision", "image recognition", "object detection", "image classification",
-        "resnet", "yolo", "image segmentation",
-        "speech recognition", "asr", "tts", "text to speech", "voice recognition",
-        "robotics", "ros ", "slam", "lidar",
+        "computer vision", "image recognition", "object detection",
+        "image classification", "image segmentation", "resnet", "yolo",
+        "speech recognition", "voice recognition", "text to speech",
+        "robotics", "slam", "lidar",
     )
     right_domain_signals = (
-        "retrieval", "information retrieval",
-        "recommendation system", "recommender",
-        "natural language processing", "nlp", "text search",
-        "embedding", "dense retrieval", "vector search",
-        "rag", "language model", "semantic search",
-        "ranking system", "search relevance", "query understanding",
+        "retrieval", "search", "recommend", "nlp",
+        "natural language", "embedding", "vector",
+        "rag", "language model", "semantic", "ranking",
+        "relevance", "query", "text classification",
     )
-    per_role_texts = [
+    full_text = " ".join(
         (ch.get("description", "") or "").lower() for ch in career
-    ]
-    full_text = " ".join(per_role_texts) + " " + (profile.get("headline", "") or "").lower()
+    ) + " " + (profile.get("headline", "") or "").lower()
 
     wrong_hits = sum(1 for s in wrong_domain_signals if s in full_text)
     right_hits  = sum(1 for s in right_domain_signals if s in full_text)
 
-    # Disqualify if wrong-domain is dominant (≥ right-domain hits) AND there's
-    # at least one clear wrong-domain mention
-    if wrong_hits >= 1 and wrong_hits >= right_hits:
+    # Only disqualify when wrong-domain STRICTLY dominates right-domain
+    # (a candidate who mentions CV briefly but has more NLP/retrieval signals is still a gem)
+    if wrong_hits > 0 and wrong_hits > right_hits:
         return False
 
     # Criteria: meaningful career score, career-skill gap, ownership evidence, right YoE
