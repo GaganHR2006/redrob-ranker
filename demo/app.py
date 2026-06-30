@@ -755,13 +755,35 @@ def main():
     with st.sidebar:
         # ── Section 1: Job Description ───────────────────────────────────────
         st.header("📋 Job Description")
-        st.markdown("Upload a custom JD to rank candidates for any role.")
+        st.markdown("The active JD controls scoring weights, keyword signals, location preference, and YoE range.")
 
-        uploaded_jd = st.file_uploader("Upload JD (JSON)", type=["json"], key="jd_upload")
+        # Show currently active JD as a badge
+        active_title = (jd_cfg or {}).get("title", "Senior AI Engineer — Founding Team")
+        st.info(f"🟢 **Active JD:** {active_title}")
+
+        with st.expander("📤 Upload a Custom JD"):
+            st.markdown("Upload a `.json` file following the schema below:")
+            uploaded_jd = st.file_uploader("Upload JD (JSON)", type=["json"], key="jd_upload",
+                                           label_visibility="collapsed")
+            if uploaded_jd:
+                try:
+                    jd_raw = json.loads(uploaded_jd.read().decode("utf-8"))
+                    errors = validate_jd(jd_raw) if validate_jd else []
+                    if errors:
+                        for e in errors:
+                            st.error(f"❌ {e}")
+                    else:
+                        st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else None
+                        jd_cfg = st.session_state.jd_config
+                        st.success(f"✅ JD loaded: **{jd_raw.get('title', 'Custom Role')}**")
+                        st.session_state.candidates_data = None
+                        st.rerun()
+                except Exception as ex:
+                    st.error(f"Failed to parse JD JSON: {ex}")
 
         with st.expander("📐 JD Schema — required format"):
             st.markdown("""
-**Required fields:**
+**Minimum required:**
 ```json
 {
   "title": "Your Job Title",
@@ -770,36 +792,44 @@ def main():
   "experience_years": { "min": 3, "max": 8 }
 }
 ```
-**Optional fields:**
-- `positive_title_tokens` — titles that confirm a good candidate
-- `hard_negative_title_tokens` — titles that disqualify
-- `acceptable_locations` — tier-2 city list
-- `experience_years.ideal_min` / `.ideal_max` — sweet spot band
-- `salary_range_inr_lpa` — `{"min": 10, "max": 80}`
-- `avoid_consulting_only` — `true`/`false`
-- `cv_specialty_penalty_keywords` — domains to penalise
-- `company_name` — shown in UI only
-
-[📄 Download full schema](https://github.com/GaganHR2006/redrob-ranker/blob/main/jd_schema.json)
+**All optional fields:**
+| Field | Purpose |
+|---|---|
+| `positive_title_tokens` | Titles that confirm a good candidate |
+| `hard_negative_title_tokens` | Titles that disqualify (capped at 0.15) |
+| `acceptable_locations` | Tier-2 preferred city list |
+| `experience_years.ideal_min/max` | Sweet-spot band inside min–max |
+| `salary_range_inr_lpa` | `{"min":10,"max":80}` budget range |
+| `avoid_consulting_only` | Penalise pure-consulting careers |
+| `cv_specialty_penalty_keywords` | Unwanted specialty domains |
+| `company_name` | Display only — shown in UI title |
             """)
 
-        if uploaded_jd:
-            try:
-                jd_raw = json.loads(uploaded_jd.read().decode("utf-8"))
-                errors = validate_jd(jd_raw) if validate_jd else []
-                if errors:
-                    for e in errors:
-                        st.error(f"❌ {e}")
-                else:
-                    st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else None
-                    jd_cfg = st.session_state.jd_config
-                    st.success(f"✅ JD loaded: **{jd_raw.get('title', 'Custom Role')}**")
-                    # Reset candidate scores when JD changes
-                    st.session_state.candidates_data = None
-            except Exception as ex:
-                st.error(f"Failed to parse JD JSON: {ex}")
+        with st.expander("🔍 Preview Active JD Config"):
+            if jd_cfg:
+                preview = {
+                    "title": jd_cfg.get("title"),
+                    "required_skills": sorted(list(jd_cfg.get("required_skills") or []))[:12],
+                    "preferred_locations": sorted(list(jd_cfg.get("preferred_locations") or [])),
+                    "acceptable_locations": sorted(list(jd_cfg.get("acceptable_locations") or []))[:8],
+                    "experience_years": {
+                        "min": jd_cfg.get("exp_min"),
+                        "max": jd_cfg.get("exp_max"),
+                        "ideal_min": jd_cfg.get("exp_ideal_min"),
+                        "ideal_max": jd_cfg.get("exp_ideal_max"),
+                    },
+                    "salary_range_inr_lpa": {
+                        "min": jd_cfg.get("sal_min"),
+                        "max": jd_cfg.get("sal_max"),
+                    },
+                    "avoid_consulting_only": jd_cfg.get("avoid_consulting_only"),
+                    "...skills_shown": "first 12 of all required_skills",
+                }
+                st.json(preview)
+            else:
+                st.caption("No JD loaded yet.")
 
-        if st.button("↩️ Reset to Default JD"):
+        if st.button("↩️ Reset to Default JD (Senior AI Engineer)"):
             st.session_state.jd_config = get_default_jd() if get_default_jd else None
             st.session_state.candidates_data = None
             st.rerun()
@@ -807,64 +837,89 @@ def main():
         st.divider()
 
         # ── Section 2: Candidates ─────────────────────────────────────────────
-        st.header("Upload Candidates")
-        st.markdown("Upload a JSON/JSONL file of candidate objects.")
+        st.header("👥 Candidates")
 
-        with st.expander("📐 Candidates Schema — required format"):
+        with st.expander("📐 Candidate Schema — required format"):
             st.markdown("""
-**Each candidate must be a JSON object with:**
-```json
-{
-  "candidate_id": "CAND_0000001",
-  "profile": {
-    "current_title": "ML Engineer",
-    "location": "Pune, Maharashtra",
-    "years_of_experience": 6,
-    "headline": "...", "summary": "..."
-  },
-  "career_history": [
-    {"title": "...", "company": "...",
-     "duration_months": 24, "description": "..."}
-  ],
-  "skills": [
-    {"name": "Python", "proficiency": "expert",
-     "endorsements": 20, "duration_months": 36}
-  ],
-  "redrob_signals": {
-    "last_active_date": "2024-05-01",
-    "open_to_work_flag": true,
-    "recruiter_response_rate": 0.85,
-    "notice_period_days": 30,
-    "github_activity_score": 72
-  }
-}
+Each candidate is a JSON object. **All top-level keys:**
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `candidate_id` | string | e.g. `"CAND_0000001"` |
+| `profile` | object | See below |
+| `career_history` | array | Max 10 items |
+| `education` | array | Max 5 items |
+| `skills` | array | No limit |
+| `certifications` | array | Optional |
+| `languages` | array | Optional |
+| `redrob_signals` | object | Platform signals |
+
+**profile fields:**
 ```
-File format: `.json` (array) or `.jsonl` (one object per line)
+anonymized_name, headline, summary, location, country,
+years_of_experience, current_title, current_company,
+current_company_size (enum), current_industry
+```
+**career_history item:**
+```
+company, title, start_date (YYYY-MM-DD), end_date,
+duration_months, is_current (bool), industry,
+company_size (enum), description
+```
+**skills item:**
+```
+name, proficiency (beginner/intermediate/advanced/expert),
+endorsements (int), duration_months (int)
+```
+**redrob_signals (key signals used by ranker):**
+```
+last_active_date, open_to_work_flag, recruiter_response_rate,
+avg_response_time_hours, notice_period_days,
+expected_salary_range_inr_lpa {min, max},
+github_activity_score (0–100, -1 if no GitHub),
+interview_completion_rate, offer_acceptance_rate,
+skill_assessment_scores {skill: score},
+profile_completeness_score, willing_to_relocate
+```
+**company_size enum values:**
+`1-10 | 11-50 | 51-200 | 201-500 | 501-1000 | 1001-5000 | 5001-10000 | 10001+`
+
+File format: `.json` (array) **or** `.jsonl` (one JSON object per line)
             """)
 
-        uploaded = st.file_uploader("Choose JSON/JSONL file", type=["json", "jsonl"])
+        st.markdown("**📤 Upload your own file:**")
+        uploaded = st.file_uploader(
+            "JSON array or JSONL (one candidate per line)",
+            type=["json", "jsonl"],
+            label_visibility="collapsed"
+        )
+        st.caption("💡 The full 465 MB `candidates.jsonl` from the hackathon dataset works here — the engine streams it and never loads it all into RAM.")
 
         st.divider()
-        st.markdown("**Try without uploading:**")
-        use_top100 = st.button("🏆 Load Top 100 Ranked Candidates", type="primary")
+        st.markdown("**⚡ Try without uploading:**")
+        use_sample = st.button(
+            "🧪 Score 50 Sample Candidates (from dataset)",
+            type="primary",
+            help="Loads the official sample_candidates.json from the hackathon dataset and scores them live against the active JD."
+        )
+        st.caption("50 real candidate profiles, scored live — not pre-ranked.")
 
         st.divider()
         st.markdown("**About this system:**")
         st.markdown("""
         - 6-dimension composite scoring
-        - Honeypot detection (impossible profiles)
-        - Keyword-stuffer detection
+        - Honeypot / fraud detection
+        - Deception & keyword-stuffer flags
         - Hidden gem surfacing
         - Star Predictor (career arc velocity)
-        - No API keys required
-        - Runs in <5 min on 100K candidates
-        - **Supports custom JD upload** ↑
+        - Zero API keys, zero LLMs
+        - Streams 100K candidates in <60 sec
+        - **Custom JD upload supported ↑**
         """)
     
-    # Load candidates
     if "candidates_data" not in st.session_state:
         st.session_state.candidates_data = None
-    
+
     if uploaded:
         try:
             content = uploaded.read().decode("utf-8")
@@ -873,63 +928,40 @@ File format: `.json` (array) or `.jsonl` (one object per line)
                 if isinstance(data, dict):
                     data = [data]
             except json.JSONDecodeError:
-                # Try parsing as JSON Lines
+                # Try parsing as JSON Lines (one object per line)
                 data = []
                 for line in content.strip().split('\n'):
                     if line.strip():
                         data.append(json.loads(line))
-            
             st.session_state.candidates_data = data
-            st.sidebar.success(f"Loaded {len(data)} candidates")
+            st.sidebar.success(f"✅ Loaded {len(data):,} candidates")
         except Exception as e:
             st.error(f"Error parsing JSON/JSONL: {e}")
             return
-    
-    elif use_top100:
-        # Look for top_100_candidates.json in multiple locations
+
+    elif use_sample:
+        # Look for sample_candidates.json (official hackathon sample dataset)
         search_paths = [
-            Path(__file__).parent.parent / "data" / "top_100_candidates.json",
-            Path(__file__).parent.parent / "top_100_candidates.json",
-            Path(__file__).parent.parent / "outputs" / "top_100_candidates.json",
-            Path(__file__).parent / "top_100_candidates.json",
+            Path(__file__).parent.parent / "data" / "sample_candidates.json",
+            Path(__file__).parent.parent / "sample_candidates.json",
+            Path(__file__).parent / "sample_candidates.json",
         ]
-        top100_path = next((p for p in search_paths if p.exists()), None)
-        if top100_path:
-            with open(top100_path, encoding="utf-8") as f:
+        sample_path = next((p for p in search_paths if p.exists()), None)
+        if sample_path:
+            with open(sample_path, encoding="utf-8") as f:
                 st.session_state.candidates_data = json.load(f)
-            st.sidebar.success(f"Loaded {len(st.session_state.candidates_data)} top-ranked candidates")
+            count = len(st.session_state.candidates_data)
+            active_jd = (jd_cfg or {}).get("title", "Default JD")
+            st.sidebar.success(f"✅ Loaded {count} sample candidates | Scoring against: {active_jd}")
         else:
-            # Fall back: try outputs/submission.csv and parse it
-            csv_path = Path(__file__).parent.parent / "outputs" / "submission.csv"
-            if csv_path.exists():
-                import csv as csv_mod
-                with open(csv_path, encoding="utf-8") as f:
-                    reader = csv_mod.DictReader(f)
-                    rows = list(reader)
-                # Build minimal candidate dicts from CSV columns
-                data = []
-                for row in rows:
-                    data.append({
-                        "candidate_id": row.get("candidate_id", ""),
-                        "profile": {
-                            "current_title": row.get("current_title", ""),
-                            "location": row.get("location", ""),
-                            "years_of_experience": row.get("years_of_experience", 0),
-                        },
-                        "_from_csv": True,
-                        "_score": float(row.get("score", 0) or 0),
-                        "_reasoning": row.get("reasoning", ""),
-                    })
-                st.session_state.candidates_data = data
-                st.sidebar.success(f"Loaded {len(data)} candidates from submission CSV")
-            else:
-                st.error("No candidate data found. Please upload a JSON/JSONL file using the uploader above.")
-                return
+            st.error("❌ sample_candidates.json not found. Please upload a candidates file using the uploader above.")
+            return
     
     candidates_data = st.session_state.candidates_data
 
     if candidates_data is None:
-        st.info("Upload a candidates JSON/JSONL file above, or click **Load Top 100 Ranked Candidates** to explore the pre-ranked results.")
+        active_jd_title = (jd_cfg or {}).get("title", "Senior AI Engineer — Founding Team")
+        st.info(f"📋 **Active JD:** {active_jd_title} | Upload candidates or click **⚡ Score 50 Sample Candidates** to explore.")
         
         st.markdown("""
         ### What this system evaluates
