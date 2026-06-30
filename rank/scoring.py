@@ -1052,25 +1052,31 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
     # A Computer Vision or Speech specialist can also have career_score=1.0
     # because they have strong career titles ("ML Engineer", "AI Engineer") —
     # but they are NOT a hidden gem for a retrieval/NLP role.
-    # Check: career descriptions OR title must contain at least some required-domain signal
     wrong_domain_signals = (
-        "computer vision", "cv only", "image recognition", "object detection",
-        "speech recognition", "asr", "tts", "text to speech",
+        "computer vision", "image recognition", "object detection", "image classification",
+        "resnet", "yolo", "image segmentation",
+        "speech recognition", "asr", "tts", "text to speech", "voice recognition",
         "robotics", "ros ", "slam", "lidar",
     )
     right_domain_signals = (
-        "retrieval", "search", "recommend", "nlp", "natural language",
-        "ranking", "embedding", "vector", "rag", "language model",
-        "recommendation", "relevance", "semantic",
+        "retrieval", "information retrieval",
+        "recommendation system", "recommender",
+        "natural language processing", "nlp", "text search",
+        "embedding", "dense retrieval", "vector search",
+        "rag", "language model", "semantic search",
+        "ranking system", "search relevance", "query understanding",
     )
-    full_text = " ".join(
+    per_role_texts = [
         (ch.get("description", "") or "").lower() for ch in career
-    ) + " " + (profile.get("headline", "") or "").lower()
-    has_wrong_domain = any(s in full_text for s in wrong_domain_signals)
-    has_right_domain = any(s in full_text for s in right_domain_signals)
+    ]
+    full_text = " ".join(per_role_texts) + " " + (profile.get("headline", "") or "").lower()
 
-    # If primarily wrong-domain with no right-domain crossover → not a gem
-    if has_wrong_domain and not has_right_domain:
+    wrong_hits = sum(1 for s in wrong_domain_signals if s in full_text)
+    right_hits  = sum(1 for s in right_domain_signals if s in full_text)
+
+    # Disqualify if wrong-domain is dominant (≥ right-domain hits) AND there's
+    # at least one clear wrong-domain mention
+    if wrong_hits >= 1 and wrong_hits >= right_hits:
         return False
 
     # Criteria: meaningful career score, career-skill gap, ownership evidence, right YoE
@@ -1082,7 +1088,6 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
         system_hits >= 3 and           # builds real systems
         yoe >= 4.0                     # enough experience to be the right hire
     )
-
 
     return is_gem
 
