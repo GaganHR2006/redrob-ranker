@@ -1,0 +1,37 @@
+{
+  "title": "Senior AI Engineer — Founding Team",
+  "company_name": "Redrob",
+  "required_skills": [
+    "python", "pytorch", "faiss", "vector search", "elasticsearch",
+    "recommendation system", "retrieval", "rag", "ndcg", "embedding",
+    "dense retrieval", "semantic search", "huggingface", "transformers",
+    "langchain", "pinecone", "weaviate", "qdrant", "ranking system"
+  ],
+  "positive_title_tokens": [
+    "ml engineer", "machine learning", "data scientist", "ai engineer",
+    "search engineer", "recommendation", "nlp", "applied scientist",
+    "retrieval engineer", "research engineer", "applied ml", "applied ai"
+  ],
+  "hard_negative_title_tokens": [
+    "marketing", "sales", "frontend", "devops", "qa engineer",
+    "content writer", "human resource", "business development",
+    "graphic design", "accountant", "customer support"
+  ],
+  "preferred_locations": ["pune", "noida"],
+  "acceptable_locations": ["bangalore", "delhi", "mumbai", "hyderabad", "gurgaon", "ncr"],
+  "experience_years": {
+    "min": 4,
+    "max": 12,
+    "ideal_min": 5,
+    "ideal_max": 9
+  },
+  "salary_range_inr_lpa": {
+    "min": 10,
+    "max": 130
+  },
+  "avoid_consulting_only": true,
+  "cv_specialty_penalty_keywords": [
+    "computer vision", "speech recognition", "robotics", "ros", "slam",
+    "lidar", "embedded ml", "asr", "tts"
+  ]
+}

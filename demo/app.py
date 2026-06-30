@@ -710,7 +710,7 @@ def show_cohort_analysis(candidates_with_scores: list):
         except Exception as e:
             st.error(f"Pairwise Tradeoffs error: {e}")
     
-    # ── Anti-Bias Audit ───────────────────────────────────────────────────────
+# ── Anti-Bias Audit ───────────────────────────────────────────────────────
     with tab_bias:
         st.markdown("**Structural diversity check across geographic spread and YoE range in the top-10.**")
         try:
@@ -753,173 +753,217 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        # ── Section 1: Job Description ───────────────────────────────────────
+        # ── Section 1: Job Description ───────────────────────────────────
         st.header("📋 Job Description")
-        st.markdown("The active JD controls scoring weights, keyword signals, location preference, and YoE range.")
+        st.markdown("Upload a custom JD **or** try the sample Redrob JD.")
 
-        # Show currently active JD as a badge
-        active_title = (jd_cfg or {}).get("title", "Senior AI Engineer — Founding Team")
-        st.info(f"🟢 **Active JD:** {active_title}")
+        uploaded_jd = st.file_uploader("Upload JD (JSON)", type=["json"], key="jd_upload")
 
-        with st.expander("📤 Upload a Custom JD"):
-            st.markdown("Upload a `.json` file following the schema below:")
-            uploaded_jd = st.file_uploader("Upload JD (JSON)", type=["json"], key="jd_upload",
-                                           label_visibility="collapsed")
-            if uploaded_jd:
-                try:
-                    jd_raw = json.loads(uploaded_jd.read().decode("utf-8"))
-                    errors = validate_jd(jd_raw) if validate_jd else []
-                    if errors:
-                        for e in errors:
-                            st.error(f"❌ {e}")
-                    else:
-                        st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else None
-                        jd_cfg = st.session_state.jd_config
-                        st.success(f"✅ JD loaded: **{jd_raw.get('title', 'Custom Role')}**")
-                        st.session_state.candidates_data = None
-                        st.rerun()
-                except Exception as ex:
-                    st.error(f"Failed to parse JD JSON: {ex}")
+        col_jd1, col_jd2 = st.columns(2)
+        with col_jd1:
+            load_sample_jd = st.button("📌 Load Sample JD", help="Load the Redrob Senior AI Engineer JD", use_container_width=True)
+        with col_jd2:
+            reset_jd = st.button("↩️ Reset JD", help="Reset to default JD config", use_container_width=True)
 
         with st.expander("📐 JD Schema — required format"):
             st.markdown("""
-**Minimum required:**
+**Required fields (minimum):**
 ```json
 {
   "title": "Your Job Title",
-  "required_skills": ["python", "pytorch", "your-skill"],
+  "required_skills": ["python", "pytorch", "skill3"],
   "preferred_locations": ["bangalore", "mumbai"],
   "experience_years": { "min": 3, "max": 8 }
 }
 ```
 **All optional fields:**
-| Field | Purpose |
-|---|---|
-| `positive_title_tokens` | Titles that confirm a good candidate |
-| `hard_negative_title_tokens` | Titles that disqualify (capped at 0.15) |
-| `acceptable_locations` | Tier-2 preferred city list |
-| `experience_years.ideal_min/max` | Sweet-spot band inside min–max |
-| `salary_range_inr_lpa` | `{"min":10,"max":80}` budget range |
-| `avoid_consulting_only` | Penalise pure-consulting careers |
-| `cv_specialty_penalty_keywords` | Unwanted specialty domains |
-| `company_name` | Display only — shown in UI title |
+| Field | Type | Description |
+|-------|------|-------------|
+| `company_name` | string | Shown in UI header |
+| `positive_title_tokens` | string[ ] | Titles that confirm fit |
+| `hard_negative_title_tokens` | string[ ] | Titles that disqualify |
+| `acceptable_locations` | string[ ] | Tier-2 preferred cities |
+| `experience_years.ideal_min/max` | number | Sweet-spot band |
+| `salary_range_inr_lpa` | `{min, max}` | Budget in LPA |
+| `avoid_consulting_only` | boolean | Penalise pure-consulting careers |
+| `cv_specialty_penalty_keywords` | string[ ] | Off-domain keywords to penalise |
+
+[📄 Download full schema (jd_schema.json)](https://github.com/GaganHR2006/redrob-ranker/blob/main/jd_schema.json)
             """)
 
-        with st.expander("🔍 Preview Active JD Config"):
-            if jd_cfg:
-                preview = {
-                    "title": jd_cfg.get("title"),
-                    "required_skills": sorted(list(jd_cfg.get("required_skills") or []))[:12],
-                    "preferred_locations": sorted(list(jd_cfg.get("preferred_locations") or [])),
-                    "acceptable_locations": sorted(list(jd_cfg.get("acceptable_locations") or []))[:8],
-                    "experience_years": {
-                        "min": jd_cfg.get("exp_min"),
-                        "max": jd_cfg.get("exp_max"),
-                        "ideal_min": jd_cfg.get("exp_ideal_min"),
-                        "ideal_max": jd_cfg.get("exp_ideal_max"),
-                    },
-                    "salary_range_inr_lpa": {
-                        "min": jd_cfg.get("sal_min"),
-                        "max": jd_cfg.get("sal_max"),
-                    },
-                    "avoid_consulting_only": jd_cfg.get("avoid_consulting_only"),
-                    "...skills_shown": "first 12 of all required_skills",
-                }
-                st.json(preview)
-            else:
-                st.caption("No JD loaded yet.")
+        # Handle JD file upload
+        if uploaded_jd:
+            try:
+                jd_raw = json.loads(uploaded_jd.read().decode("utf-8"))
+                errors = validate_jd(jd_raw) if validate_jd else []
+                if errors:
+                    for e in errors:
+                        st.error(f"❌ {e}")
+                else:
+                    st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else None
+                    jd_cfg = st.session_state.jd_config
+                    st.success(f"✅ JD loaded: **{jd_raw.get('title', 'Custom Role')}**")
+                    st.session_state.candidates_data = None  # re-score with new JD
+            except Exception as ex:
+                st.error(f"Failed to parse JD JSON: {ex}")
 
-        if st.button("↩️ Reset to Default JD (Senior AI Engineer)"):
+        # Handle Sample JD button
+        if load_sample_jd:
+            sample_jd_paths = [
+                Path(__file__).parent.parent / "sample_jd.json",
+                Path(__file__).parent / "sample_jd.json",
+            ]
+            sample_jd_path = next((p for p in sample_jd_paths if p.exists()), None)
+            if sample_jd_path:
+                with open(sample_jd_path, encoding="utf-8") as f:
+                    jd_raw = json.load(f)
+                st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else get_default_jd()
+                jd_cfg = st.session_state.jd_config
+                st.success("✅ Sample JD loaded: **Senior AI Engineer — Founding Team (Redrob)**")
+                st.session_state.candidates_data = None
+            else:
+                # Fallback: use the built-in default
+                st.session_state.jd_config = get_default_jd() if get_default_jd else None
+                jd_cfg = st.session_state.jd_config
+                st.success("✅ Default Redrob JD loaded")
+                st.session_state.candidates_data = None
+            st.rerun()
+
+        # Handle Reset JD button
+        if reset_jd:
             st.session_state.jd_config = get_default_jd() if get_default_jd else None
             st.session_state.candidates_data = None
             st.rerun()
 
+        # Show active JD indicator
+        active_title = (st.session_state.get("jd_config") or {}).get("title", "Redrob Default")
+        st.caption(f"🟢 Active JD: **{active_title}**")
+
         st.divider()
 
-        # ── Section 2: Candidates ─────────────────────────────────────────────
-        st.header("👥 Candidates")
+        # ── Section 2: Candidates ─────────────────────────────────────────
+        st.header("👥 Upload Candidates")
+        st.markdown("Upload your own file **or** try without uploading:")
 
-        with st.expander("📐 Candidate Schema — required format"):
+        with st.expander("📐 Candidates Schema — required format"):
             st.markdown("""
-Each candidate is a JSON object. **All top-level keys:**
-
-| Key | Type | Notes |
-|-----|------|-------|
-| `candidate_id` | string | e.g. `"CAND_0000001"` |
-| `profile` | object | See below |
-| `career_history` | array | Max 10 items |
-| `education` | array | Max 5 items |
-| `skills` | array | No limit |
-| `certifications` | array | Optional |
-| `languages` | array | Optional |
-| `redrob_signals` | object | Platform signals |
-
-**profile fields:**
+**Required top-level fields:**
+```json
+{
+  "candidate_id": "CAND_0000001",
+  "profile":        { ... },
+  "career_history": [ ... ],
+  "education":      [ ... ],
+  "skills":         [ ... ],
+  "redrob_signals": { ... },
+  "certifications": [ ... ],  // optional
+  "languages":      [ ... ]   // optional
+}
 ```
-anonymized_name, headline, summary, location, country,
-years_of_experience, current_title, current_company,
-current_company_size (enum), current_industry
+**`profile` required fields:**
+```json
+{
+  "anonymized_name": "Candidate A",
+  "headline": "ML Engineer at Startup",
+  "summary": "5+ years building recommenders...",
+  "location": "Pune, Maharashtra",
+  "country": "India",
+  "years_of_experience": 6,
+  "current_title": "Senior ML Engineer",
+  "current_company": "Acme AI",
+  "current_company_size": "51-200",
+  "current_industry": "Technology"
+}
+// company_size enum: 1-10|11-50|51-200|201-500|501-1000|1001-5000|5001-10000|10001+
 ```
-**career_history item:**
+**`career_history` item required fields:**
+```json
+{
+  "company": "Acme AI",
+  "title": "ML Engineer",
+  "start_date": "2021-06-01",
+  "end_date": "2024-01-15",   // null if is_current=true
+  "duration_months": 31,
+  "is_current": false,
+  "industry": "Technology",
+  "company_size": "51-200",
+  "description": "Built recommendation pipeline..."
+}
 ```
-company, title, start_date (YYYY-MM-DD), end_date,
-duration_months, is_current (bool), industry,
-company_size (enum), description
+**`skills` item required fields:**
+```json
+{ "name": "PyTorch", "proficiency": "expert",
+  "endorsements": 25, "duration_months": 36 }
+// proficiency enum: beginner|intermediate|advanced|expert
 ```
-**skills item:**
+**`education` item required fields:**
+```json
+{ "institution": "IIT Bombay", "degree": "B.Tech",
+  "field_of_study": "Computer Science",
+  "start_year": 2016, "end_year": 2020 }
+// optional: grade, tier (tier_1|tier_2|tier_3|tier_4|unknown)
 ```
-name, proficiency (beginner/intermediate/advanced/expert),
-endorsements (int), duration_months (int)
+**`redrob_signals` required fields (all 23):**
+```json
+{
+  "profile_completeness_score": 87,
+  "signup_date": "2023-01-15",
+  "last_active_date": "2024-05-20",
+  "open_to_work_flag": true,
+  "profile_views_received_30d": 45,
+  "applications_submitted_30d": 3,
+  "recruiter_response_rate": 0.85,
+  "avg_response_time_hours": 4.5,
+  "skill_assessment_scores": {"Python": 88},
+  "connection_count": 312,
+  "endorsements_received": 120,
+  "notice_period_days": 30,
+  "expected_salary_range_inr_lpa": {"min": 30, "max": 50},
+  "preferred_work_mode": "hybrid",
+  "willing_to_relocate": true,
+  "github_activity_score": 72,
+  "search_appearance_30d": 89,
+  "saved_by_recruiters_30d": 5,
+  "interview_completion_rate": 0.9,
+  "offer_acceptance_rate": 0.75,
+  "verified_email": true,
+  "verified_phone": true,
+  "linkedin_connected": true
+}
+// preferred_work_mode enum: remote|hybrid|onsite|flexible
+// github_activity_score: 0-100 or -1 if no GitHub linked
+// offer_acceptance_rate: 0.0-1.0 or -1 if no offer history
 ```
-**redrob_signals (key signals used by ranker):**
-```
-last_active_date, open_to_work_flag, recruiter_response_rate,
-avg_response_time_hours, notice_period_days,
-expected_salary_range_inr_lpa {min, max},
-github_activity_score (0–100, -1 if no GitHub),
-interview_completion_rate, offer_acceptance_rate,
-skill_assessment_scores {skill: score},
-profile_completeness_score, willing_to_relocate
-```
-**company_size enum values:**
-`1-10 | 11-50 | 51-200 | 201-500 | 501-1000 | 1001-5000 | 5001-10000 | 10001+`
-
-File format: `.json` (array) **or** `.jsonl` (one JSON object per line)
+**File format:** `.json` (array) or `.jsonl` (one object per line)
             """)
 
-        st.markdown("**📤 Upload your own file:**")
-        uploaded = st.file_uploader(
-            "JSON array or JSONL (one candidate per line)",
-            type=["json", "jsonl"],
-            label_visibility="collapsed"
-        )
-        st.caption("💡 The full 465 MB `candidates.jsonl` from the hackathon dataset works here — the engine streams it and never loads it all into RAM.")
+        uploaded = st.file_uploader("Choose JSON/JSONL file", type=["json", "jsonl"])
 
         st.divider()
-        st.markdown("**⚡ Try without uploading:**")
-        use_sample = st.button(
-            "🧪 Score 50 Sample Candidates (from dataset)",
-            type="primary",
-            help="Loads the official sample_candidates.json from the hackathon dataset and scores them live against the active JD."
-        )
-        st.caption("50 real candidate profiles, scored live — not pre-ranked.")
+        st.markdown("**Try without uploading:**")
+        use_top100 = st.button("🏆 Load Top 100 Ranked Candidates", type="primary",
+                               use_container_width=True,
+                               help="Load pre-ranked Top 100 from the 100K Redrob dataset")
+        use_all = st.button("📂 Load All 100K Candidates (~60s)", use_container_width=True,
+                            help="Stream and score all 465 MB candidates.jsonl locally")
 
         st.divider()
         st.markdown("**About this system:**")
         st.markdown("""
         - 6-dimension composite scoring
-        - Honeypot / fraud detection
-        - Deception & keyword-stuffer flags
+        - Honeypot detection (impossible profiles)
+        - Keyword-stuffer detection
         - Hidden gem surfacing
         - Star Predictor (career arc velocity)
-        - Zero API keys, zero LLMs
-        - Streams 100K candidates in <60 sec
-        - **Custom JD upload supported ↑**
+        - No API keys required
+        - Runs in <60s on 100K candidates
+        - Supports custom JD upload ↑
         """)
     
+    # Load candidates
     if "candidates_data" not in st.session_state:
         st.session_state.candidates_data = None
-
+    
     if uploaded:
         try:
             content = uploaded.read().decode("utf-8")
@@ -928,57 +972,114 @@ File format: `.json` (array) **or** `.jsonl` (one JSON object per line)
                 if isinstance(data, dict):
                     data = [data]
             except json.JSONDecodeError:
-                # Try parsing as JSON Lines (one object per line)
+                # Try parsing as JSON Lines
                 data = []
                 for line in content.strip().split('\n'):
                     if line.strip():
                         data.append(json.loads(line))
             st.session_state.candidates_data = data
-            st.sidebar.success(f"✅ Loaded {len(data):,} candidates")
+            st.sidebar.success(f"Loaded {len(data)} candidates")
         except Exception as e:
             st.error(f"Error parsing JSON/JSONL: {e}")
             return
 
-    elif use_sample:
-        # Look for sample_candidates.json (official hackathon sample dataset)
+    elif use_top100:
+        # Look for top_100_candidates.json in multiple locations
         search_paths = [
-            Path(__file__).parent.parent / "data" / "sample_candidates.json",
-            Path(__file__).parent.parent / "sample_candidates.json",
-            Path(__file__).parent / "sample_candidates.json",
+            Path(__file__).parent.parent / "data" / "top_100_candidates.json",
+            Path(__file__).parent.parent / "top_100_candidates.json",
+            Path(__file__).parent.parent / "outputs" / "top_100_candidates.json",
+            Path(__file__).parent / "top_100_candidates.json",
         ]
-        sample_path = next((p for p in search_paths if p.exists()), None)
-        if sample_path:
-            with open(sample_path, encoding="utf-8") as f:
+        top100_path = next((p for p in search_paths if p.exists()), None)
+        if top100_path:
+            with open(top100_path, encoding="utf-8") as f:
                 st.session_state.candidates_data = json.load(f)
-            count = len(st.session_state.candidates_data)
-            active_jd = (jd_cfg or {}).get("title", "Default JD")
-            st.sidebar.success(f"✅ Loaded {count} sample candidates | Scoring against: {active_jd}")
+            st.sidebar.success(f"Loaded {len(st.session_state.candidates_data)} top-ranked candidates")
         else:
-            st.error("❌ sample_candidates.json not found. Please upload a candidates file using the uploader above.")
+            # Fall back: try outputs/submission.csv and parse it
+            csv_path = Path(__file__).parent.parent / "outputs" / "submission.csv"
+            if csv_path.exists():
+                import csv as csv_mod
+                with open(csv_path, encoding="utf-8") as f:
+                    reader = csv_mod.DictReader(f)
+                    rows = list(reader)
+                data = []
+                for row in rows:
+                    data.append({
+                        "candidate_id": row.get("candidate_id", ""),
+                        "profile": {
+                            "current_title": row.get("current_title", ""),
+                            "location": row.get("location", ""),
+                            "years_of_experience": row.get("years_of_experience", 0),
+                        },
+                        "_from_csv": True,
+                        "_score": float(row.get("score", 0) or 0),
+                        "_reasoning": row.get("reasoning", ""),
+                    })
+                st.session_state.candidates_data = data
+                st.sidebar.success(f"Loaded {len(data)} candidates from submission CSV")
+            else:
+                st.error("No candidate data found. Please upload a JSON/JSONL file using the uploader above.")
+                return
+
+    elif use_all:
+        # Stream the full 465 MB candidates.jsonl from common local paths
+        all_candidates_paths = [
+            Path(r"C:/Users/gagan/Downloads/redrob_extracted/candidates.jsonl"),
+            Path(__file__).parent.parent / "data" / "candidates.jsonl",
+            Path(__file__).parent.parent / "candidates.jsonl",
+        ]
+        all_path = next((p for p in all_candidates_paths if p.exists()), None)
+        if all_path:
+            with st.spinner(f"Streaming all candidates from {all_path.name} — this may take ~60 seconds..."):
+                data = []
+                with open(all_path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                data.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                continue
+            st.session_state.candidates_data = data
+            st.sidebar.success(f"✅ Loaded {len(data):,} candidates from {all_path.name}")
+        else:
+            st.error(
+                "❌ Could not find candidates.jsonl locally.\n\n"
+                "Please place your `candidates.jsonl` file in one of these locations:\n"
+                "- `redrob-ranker/data/candidates.jsonl`\n"
+                "- `redrob-ranker/candidates.jsonl`\n\n"
+                "Or use the file uploader above."
+            )
             return
     
     candidates_data = st.session_state.candidates_data
 
     if candidates_data is None:
-        active_jd_title = (jd_cfg or {}).get("title", "Senior AI Engineer — Founding Team")
-        st.info(f"📋 **Active JD:** {active_jd_title} | Upload candidates or click **⚡ Score 50 Sample Candidates** to explore.")
-        
+        st.info(
+            "Choose one of:\n"
+            "1. 📋 **Upload your JD** (or Load Sample JD) in the sidebar\n"
+            "2. 👥 **Upload candidates** or click **Load Top 100** / **Load All 100K**"
+        )
         st.markdown("""
         ### What this system evaluates
-        
-        | Component | Description |
-        |-----------|-------------|
-        | **Career Substance** | Did this person actually build ML/AI/search systems? Reads job titles + profile summary |
-        | **Skill Credibility** | Are skills corroborated by endorsements, duration, and career descriptions? |
-        | **Experience Quality** | Right amount of experience (5-9yr preferred), product company, not pure research |
-        | **Behavioral Availability** | Last active, response rate, notice period, open-to-work signals |
-        | **Location Fit** | Pune/Noida preferred, Tier-1 cities acceptable |
-        
+
+        | Component | Weight | Description |
+        |-----------|--------|-------------|
+        | **Career Substance** | 40% | Did this person actually build AI/ML/search systems? Reads job titles + headline |
+        | **Skill Credibility** | 22% | Are skills corroborated by endorsements, duration, platform assessments? |
+        | **Experience Quality** | 18% | Right YoE range, product company, not pure research/consulting |
+        | **Behavioral Availability** | 15% | Last active date, response rate, notice period, open-to-work flag |
+        | **Star Predictor** | 7% | Career growth arc — learning velocity across roles |
+        | **Location Fit** | 5% | JD preferred cities vs. candidate location |
+
         **Anti-trap mechanisms:**
         - Keyword stuffers (Marketing Manager with AI skills) → capped at 0.15
-        - Honeypots (impossible timelines) → zeroed completely  
-        - Behavioral ghosts (inactive 180d + 5% response) → heavily down-weighted
-        - Hidden gems (plain-language engineers) → 0.05 bonus applied
+        - Honeypots (impossible timelines or duplicate profiles) → zeroed
+        - Behavioral ghosts (inactive 180d + 5% response rate) → heavily down-weighted
+        - Hidden gems (plain-language engineers without buzzwords) → +0.05 bonus
+        - Consulting-only careers → 55% penalty multiplier
         """)
         return
     
