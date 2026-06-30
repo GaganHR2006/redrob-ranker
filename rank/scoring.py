@@ -1048,9 +1048,22 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
         ownership_hits += sum(1 for w in ownership_indicators if w in desc)
         system_hits += sum(1 for w in system_indicators if w in desc)
 
-    # Anti-false-positive: exclude pure CV/Speech specialists from being gems
-    # for an NLP/retrieval role. Counts how many wrong-domain vs right-domain
-    # signals appear across ALL career descriptions.
+    # Anti-false-positive: exclude pure CV/Speech/Robotics specialists from being gems
+    # for an NLP/retrieval role.
+    # PRIMARY CHECK: if the candidate's own title/headline labels them as a CV or Speech
+    # specialist, they are the wrong hire — regardless of what appears in descriptions.
+    wrong_domain_titles = (
+        "computer vision", "cv engineer", "image", "vision engineer",
+        "speech", "asr", "voice", "robotics", "lidar",
+    )
+    title_text = (
+        (profile.get("current_title", "") or "").lower() + " " +
+        (profile.get("headline", "") or "").lower()
+    )
+    if any(s in title_text for s in wrong_domain_titles):
+        return False
+
+    # SECONDARY CHECK: if descriptions are dominated by wrong-domain signals
     wrong_domain_signals = (
         "computer vision", "image recognition", "object detection",
         "image classification", "image segmentation", "resnet", "yolo",
@@ -1063,15 +1076,11 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
         "rag", "language model", "semantic", "ranking",
         "relevance", "query", "text classification",
     )
-    full_text = " ".join(
+    desc_text = " ".join(
         (ch.get("description", "") or "").lower() for ch in career
-    ) + " " + (profile.get("headline", "") or "").lower()
-
-    wrong_hits = sum(1 for s in wrong_domain_signals if s in full_text)
-    right_hits  = sum(1 for s in right_domain_signals if s in full_text)
-
-    # Only disqualify when wrong-domain STRICTLY dominates right-domain
-    # (a candidate who mentions CV briefly but has more NLP/retrieval signals is still a gem)
+    )
+    wrong_hits = sum(1 for s in wrong_domain_signals if s in desc_text)
+    right_hits  = sum(1 for s in right_domain_signals if s in desc_text)
     if wrong_hits > 0 and wrong_hits > right_hits:
         return False
 
