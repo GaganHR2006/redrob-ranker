@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Redrob JD Schema",
+  "description": "Schema for a Job Description file used by the Redrob AI Candidate Ranker. Upload a JSON file following this schema to rank candidates against any custom role.",
+  "type": "object",
+  "required": [
+    "title",
+    "required_skills",
+    "preferred_locations",
+    "experience_years"
+  ],
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Full job title shown in the UI. Example: 'Senior AI Engineer — Founding Team'"
+    },
+    "company_name": {
+      "type": "string",
+      "description": "Hiring company name. Optional — shown in UI only."
+    },
+    "required_skills": {
+      "type": "array",
+      "description": "Keywords the system will search for in career descriptions AND skills. These are the core domain signals. Example: ['python', 'pytorch', 'faiss', 'recommendation system']",
+      "minItems": 3,
+      "items": { "type": "string" }
+    },
+    "positive_title_tokens": {
+      "type": "array",
+      "description": "Job title keywords that indicate the candidate IS the right type of person. Example: ['ml engineer', 'data scientist', 'search engineer']",
+      "items": { "type": "string" }
+    },
+    "hard_negative_title_tokens": {
+      "type": "array",
+      "description": "Job title keywords that DISQUALIFY a candidate regardless of skills. Example: ['marketing', 'sales', 'frontend', 'devops']. Candidates matching these are capped at score 0.15.",
+      "items": { "type": "string" }
+    },
+    "preferred_locations": {
+      "type": "array",
+      "description": "City names that get the highest location score. Example: ['pune', 'noida']. Case-insensitive.",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "acceptable_locations": {
+      "type": "array",
+      "description": "City names that are acceptable (tier-2 preference). Example: ['bangalore', 'delhi', 'mumbai', 'hyderabad']",
+      "items": { "type": "string" }
+    },
+    "experience_years": {
+      "type": "object",
+      "description": "Ideal experience range in years.",
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "number", "minimum": 0, "description": "Minimum years (candidates below this are penalized)" },
+        "max": { "type": "number", "minimum": 0, "description": "Maximum years (candidates above this get slightly lower score)" },
+        "ideal_min": { "type": "number", "description": "Optional: ideal lower bound. Defaults to min." },
+        "ideal_max": { "type": "number", "description": "Optional: ideal upper bound. Defaults to max." }
+      }
+    },
+    "salary_range_inr_lpa": {
+      "type": "object",
+      "description": "Expected salary budget range in INR Lakhs Per Annum. Candidates outside this range receive a multiplier penalty.",
+      "properties": {
+        "min": { "type": "number", "minimum": 0, "description": "Minimum budget. Candidates asking less are fine." },
+        "max": { "type": "number", "minimum": 0, "description": "Maximum budget. Candidates asking more are penalized." }
+      }
+    },
+    "avoid_consulting_only": {
+      "type": "boolean",
+      "description": "If true, candidates whose ENTIRE career is at consulting firms (TCS, Infosys, Wipro etc.) receive a penalty. Default: true.",
+      "default": true
+    },
+    "cv_specialty_penalty_keywords": {
+      "type": "array",
+      "description": "Career description keywords indicating a specialist in an UNWANTED domain. Candidates whose career descriptions ONLY contain these keywords (without any overlap with required_skills) receive a penalty. Example: ['computer vision only', 'speech recognition', 'robotics']. Leave empty to disable.",
+      "items": { "type": "string" }
+    }
+  },
+  "examples": [
+    {
+      "title": "Senior AI Engineer — Founding Team",
+      "company_name": "Redrob",
+      "required_skills": [
+        "python", "pytorch", "faiss", "vector search", "elasticsearch",
+        "recommendation system", "retrieval", "rag", "ndcg", "embedding"
+      ],
+      "positive_title_tokens": [
+        "ml engineer", "machine learning", "data scientist", "ai engineer",
+        "search engineer", "recommendation", "nlp", "applied scientist"
+      ],
+      "hard_negative_title_tokens": [
+        "marketing", "sales", "frontend", "devops", "qa engineer",
+        "content writer", "human resource", "business development"
+      ],
+      "preferred_locations": ["pune", "noida"],
+      "acceptable_locations": ["bangalore", "delhi", "mumbai", "hyderabad", "gurgaon"],
+      "experience_years": { "min": 4, "max": 10, "ideal_min": 5, "ideal_max": 9 },
+      "salary_range_inr_lpa": { "min": 10, "max": 130 },
+      "avoid_consulting_only": true,
+      "cv_specialty_penalty_keywords": ["computer vision", "speech recognition", "robotics", "embedded systems"]
+    }
+  ]
+}

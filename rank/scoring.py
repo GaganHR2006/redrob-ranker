@@ -15,6 +15,24 @@ import re
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+# Import JD parser for dynamic config support
+try:
+    from rank.jd_parser import get_default_config as _get_default_jd
+except ImportError:
+    try:
+        from jd_parser import get_default_config as _get_default_jd
+    except ImportError:
+        _get_default_jd = None
+
+_DEFAULT_JD_CONFIG: Optional[Dict[str, Any]] = None
+
+def _default_jd() -> Dict[str, Any]:
+    """Lazy-load the default JD config."""
+    global _DEFAULT_JD_CONFIG
+    if _DEFAULT_JD_CONFIG is None and _get_default_jd is not None:
+        _DEFAULT_JD_CONFIG = _get_default_jd()
+    return _DEFAULT_JD_CONFIG or {}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # JD REQUIREMENTS — what the role MEANS, not just what it SAYS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -281,25 +299,23 @@ def detect_honeypot(candidate: dict) -> Tuple[bool, str]:
 # The most important signal — did this person actually build ML/AI/search systems?
 # ─────────────────────────────────────────────────────────────────────────────
 
-def score_career_substance(candidate: dict) -> float:
+def score_career_substance(candidate: dict, cfg: Optional[Dict[str, Any]] = None) -> float:
     """
     Evaluates the CAREER HISTORY and PROFILE for AI/ML/search substance.
-    
-    Key insight from dataset analysis: career description texts are synthetic templates
-    (same descriptions reused across candidates). The reliable signals are:
-    1. Career history JOB TITLES — these are unique and specific
-    2. Profile HEADLINE and SUMMARY — unique to each candidate
-    3. SKILLS with duration + endorsements — corroborated claims
-    4. COMPANY context (product vs consulting)
-    5. Career description as secondary signal
+    Uses jd_config for domain keywords and hard-negative title tokens if provided.
     """
+    # Resolve JD-specific constants (fall back to module-level if no config)
+    hard_neg = (cfg or {}).get("hard_negative_title_tokens") or HARD_NEGATIVE_TITLE_TOKENS
+    prod_signals = (cfg or {}).get("required_skills") or PRODUCTION_RETRIEVAL_SIGNALS
+    consulting_flag = (cfg or {}).get("avoid_consulting_only", True)
+
     career = candidate.get("career_history", [])
     profile = _safe_dict(candidate.get("profile"))
     if not career:
         return 0.0
 
     current_title = _safe_str(profile.get("current_title")).lower()
-    if _text_contains_any(current_title, HARD_NEGATIVE_TITLE_TOKENS):
+    if _text_contains_any(current_title, hard_neg):
         return 0.04
 
     # ── Signal 1: Profile headline and summary (unique per candidate) ────────
@@ -346,7 +362,7 @@ def score_career_substance(candidate: dict) -> float:
         duration = int(ch.get("duration_months", 0) or 0)
 
         # Hard negative: clearly non-AI/ML role
-        if _text_contains_any(title, HARD_NEGATIVE_TITLE_TOKENS):
+        if _text_contains_any(title, hard_neg):
             hard_negative_roles += 1
             continue
 
@@ -359,11 +375,11 @@ def score_career_substance(candidate: dict) -> float:
             ai_ml_title_months += duration * 0.15
 
         # Secondary: career description hits
-        prod_hits = _count_matches(desc, PRODUCTION_RETRIEVAL_SIGNALS)
+        prod_hits = _count_matches(desc, prod_signals)
         career_desc_prod_hits_total += min(1.0, prod_hits / 3.0)
 
         # Company type
-        is_consulting = any(cf in company for cf in CONSULTING_FIRMS)
+        is_consulting = consulting_flag and any(cf in company for cf in CONSULTING_FIRMS)
         if not is_consulting:
             consulting_only = False
             size_scores = {
@@ -391,7 +407,7 @@ def score_career_substance(candidate: dict) -> float:
         duration = int(s.get("duration_months", 0) or 0)
         proficiency = s.get("proficiency", "beginner")
 
-        if not _text_contains_any(name, PRODUCTION_RETRIEVAL_SIGNALS):
+        if not _text_contains_any(name, prod_signals):
             continue
 
         # Trust: endorsements + duration are hard to fake
@@ -430,7 +446,7 @@ def score_career_substance(candidate: dict) -> float:
     if career and (hard_negative_roles / len(career)) > 0.6:
         return 0.04  # Keyword stuffer with wrong career
 
-    consulting_penalty = 0.55 if consulting_only and len(career) >= 2 else 1.0
+    consulting_penalty = 0.55 if (consulting_flag and consulting_only and len(career) >= 2) else 1.0
 
     ai_months_score = min(1.0, ai_ml_title_months / 60.0)  # 5 yrs in AI/ML titles = max
     product_score = min(1.0, product_company_score / (len(career) * 1.5)) if career else 0.0
@@ -457,7 +473,7 @@ def score_career_substance(candidate: dict) -> float:
 # Skills are self-reported — we trust them only when corroborated
 # ─────────────────────────────────────────────────────────────────────────────
 
-def score_skill_credibility(candidate: dict) -> float:
+def score_skill_credibility(candidate: dict, cfg: Optional[Dict[str, Any]] = None) -> float:
     """
     Scores skills with a CORROBORATION multiplier.
     A skill gets full credit only when:
@@ -594,27 +610,31 @@ def score_skill_credibility(candidate: dict) -> float:
 # Right kind of experience at the right stage of career
 # ─────────────────────────────────────────────────────────────────────────────
 
-def score_experience_quality(candidate: dict) -> float:
+def score_experience_quality(candidate: dict, cfg: Optional[Dict[str, Any]] = None) -> float:
     """
     Evaluates whether the AMOUNT and TYPE of experience fits the role.
-    JD wants 5-9 years, product company, production systems.
+    Uses jd_config for YoE range if provided.
     """
+    exp_ideal_min = (cfg or {}).get("exp_ideal_min", 5)
+    exp_ideal_max = (cfg or {}).get("exp_ideal_max", 9)
+    exp_min       = (cfg or {}).get("exp_min", 4)
+    exp_max       = (cfg or {}).get("exp_max", 12)
     profile = _safe_dict(candidate.get("profile"))
     career = candidate.get("career_history", [])
     yoe = _safe_num(profile.get("years_of_experience"), 0)
 
-    # YoE fit — JD says 5-9 but notes it's a range
-    if 5 <= yoe <= 9:
+    # YoE fit — use JD-configured range
+    if exp_ideal_min <= yoe <= exp_ideal_max:
         yoe_score = 1.0
-    elif 4 <= yoe < 5:
+    elif exp_min <= yoe < exp_ideal_min:
         yoe_score = 0.80
-    elif 9 < yoe <= 12:
+    elif exp_ideal_max < yoe <= exp_max:
         yoe_score = 0.80
-    elif 3 <= yoe < 4:
+    elif (exp_min - 1) <= yoe < exp_min:
         yoe_score = 0.55
-    elif yoe > 12:
+    elif yoe > exp_max:
         yoe_score = 0.60
-    elif 2 <= yoe < 3:
+    elif (exp_min - 2) <= yoe < (exp_min - 1):
         yoe_score = 0.30
     else:
         yoe_score = 0.10
@@ -793,8 +813,10 @@ def score_behavioral_availability(candidate: dict) -> float:
 # DIMENSION E: LOCATION & LOGISTICS  (weight 0.05)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def score_location(candidate: dict) -> float:
-    """Location scoring — Pune/Noida preferred, all Tier-1 cities acceptable."""
+def score_location(candidate: dict, cfg: Optional[Dict[str, Any]] = None) -> float:
+    """Location scoring — uses JD-configured preferred/acceptable cities if provided."""
+    preferred = (cfg or {}).get("preferred_locations") or PREFERRED_LOCATIONS
+    acceptable = (cfg or {}).get("acceptable_locations") or ACCEPTABLE_LOCATIONS
     profile = _safe_dict(candidate.get("profile"))
     rs = _safe_dict(candidate.get("redrob_signals"))
 
@@ -802,9 +824,9 @@ def score_location(candidate: dict) -> float:
     country = str(profile.get("country", "") or "").lower()
     willing_to_relocate = bool(rs.get("willing_to_relocate", False))
 
-    if any(city in location for city in PREFERRED_LOCATIONS):
+    if any(city in location for city in preferred):
         return 1.0
-    elif any(city in location for city in ACCEPTABLE_LOCATIONS):
+    elif any(city in location for city in acceptable):
         return 0.85
     elif country == "india":
         return 0.65 if willing_to_relocate else 0.55
@@ -951,14 +973,14 @@ def compute_language_bonus(candidate: dict) -> float:
 # Uses expected_salary_range_inr_lpa — avoids extremely misaligned candidates
 # ─────────────────────────────────────────────────────────────────────────────
 
-def compute_salary_alignment(candidate: dict) -> float:
+def compute_salary_alignment(candidate: dict, cfg: Optional[Dict[str, Any]] = None) -> float:
     """
-    Checks if salary expectations are within realistic range for this role.
-    A Series A company (Redrob) can't afford ₹150LPA candidates.
-    But very low expectations may indicate under-qualified candidates.
-    Returns a multiplier: 0.85 (misaligned) to 1.0 (aligned).
-    Expected range for a 5-9yr Senior AI Engineer at Series A: ₹25-80 LPA
+    Checks if salary expectations are within the JD budget range.
+    Returns a multiplier: 0.88 (misaligned) to 1.0 (aligned).
+    Uses jd_config salary_range_inr_lpa if provided.
     """
+    sal_budget_max = (cfg or {}).get("sal_max", 130)
+    sal_budget_min = (cfg or {}).get("sal_min", 0)
     rs = _safe_dict(candidate.get("redrob_signals"))
     salary_range = rs.get("expected_salary_range_inr_lpa") or {}
     if not salary_range:
@@ -971,19 +993,20 @@ def compute_salary_alignment(candidate: dict) -> float:
         return 1.0  # not specified
 
     sal_mid = (sal_min + sal_max) / 2.0
+    budget_mid = (sal_budget_min + sal_budget_max) / 2.0
+    budget_lo = sal_budget_min * 0.8 if sal_budget_min > 0 else 0
+    budget_hi = sal_budget_max
 
-    # Realistic range for this role at a Series A: 20-100 LPA
-    if 20 <= sal_mid <= 100:
-        return 1.0   # perfectly aligned
-    elif 15 <= sal_mid < 20:
-        return 0.97  # slightly below — may indicate less senior
-    elif 100 < sal_mid <= 130:
-        return 0.95  # slightly above — stretch but possible
-    elif sal_mid > 130:
-        return 0.88  # significantly over budget for Series A
-    elif sal_mid < 15:
-        return 0.92  # very low — may be under-experienced
-    return 1.0
+    if budget_lo <= sal_mid <= budget_hi:
+        return 1.0   # within budget
+    elif sal_mid < budget_lo:
+        return 0.97  # below minimum — may be under-experienced
+    elif sal_mid <= budget_hi * 1.15:
+        return 0.95  # slightly over budget
+    elif sal_mid <= budget_hi * 1.4:
+        return 0.88  # significantly over budget
+    else:
+        return 0.82  # way out of range
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1249,28 +1272,30 @@ NLP_IR_COUNTER_SIGNALS = {
 }
 
 
-def compute_cv_speech_penalty(candidate: dict) -> float:
+def compute_cv_speech_penalty(candidate: dict, cfg: Optional[Dict[str, Any]] = None) -> float:
     """
-    Penalty for candidates whose expertise is PRIMARILY in CV/speech/robotics
-    WITHOUT any NLP/IR exposure.
-    JD: these people would be 're-learning fundamentals' for this role.
-    Returns a negative adjustment (0.0 = no penalty, -0.15 = max penalty).
+    Penalty for candidates whose expertise is PRIMARILY in an unwanted specialty
+    WITHOUT crossover into the role's required domain.
+    Returns a negative adjustment (0.0 = no penalty, -0.12 = max penalty).
+    Uses jd_config cv_specialty_penalty_keywords if provided.
     """
     text = _build_text_blob(candidate)
+    # Use custom penalty keywords from JD if provided
+    custom_penalty_kws = (cfg or {}).get("cv_specialty_penalty_keywords") or []
+    if custom_penalty_kws:
+        prod_signals = (cfg or {}).get("required_skills") or PRODUCTION_RETRIEVAL_SIGNALS
+        wrong_domain_hits = sum(1 for s in custom_penalty_kws if s in text)
+        nlp_hits = sum(1 for s in prod_signals if s in text)
+    else:
+        wrong_domain_hits = sum(1 for s in CV_SPECIALTY_SIGNALS if s in text) + \
+                            sum(1 for s in SPEECH_SPECIALTY_SIGNALS if s in text) + \
+                            sum(1 for s in ROBOTICS_SPECIALTY_SIGNALS if s in text)
+        nlp_hits = sum(1 for s in NLP_IR_COUNTER_SIGNALS if s in text)
 
-    cv_hits = sum(1 for s in CV_SPECIALTY_SIGNALS if s in text)
-    speech_hits = sum(1 for s in SPEECH_SPECIALTY_SIGNALS if s in text)
-    robotics_hits = sum(1 for s in ROBOTICS_SPECIALTY_SIGNALS if s in text)
-    nlp_hits = sum(1 for s in NLP_IR_COUNTER_SIGNALS if s in text)
-
-    wrong_domain_hits = cv_hits + speech_hits + robotics_hits
-
-    # Only penalize if strong wrong-domain signal AND weak NLP/IR signal
+    # Only penalize if strong wrong-domain signal AND weak required-domain signal
     if wrong_domain_hits >= 4 and nlp_hits <= 2:
-        # Strong CV/speech/robotics specialist without NLP crossover
         return -0.12
     elif wrong_domain_hits >= 2 and nlp_hits == 0:
-        # Moderate specialist with zero NLP signal
         return -0.06
     return 0.0
 
@@ -1458,18 +1483,24 @@ WEIGHTS = {
 DECEPTION_PENALTIES = {"low": 0.00, "medium": 0.06, "high": 0.18}
 
 
-def compute_composite_score(candidate: dict) -> Dict[str, Any]:
+def compute_composite_score(candidate: dict, jd_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Main entry point. Returns a dict with all sub-scores and the final composite.
-    
+
+    Args:
+        candidate: A single candidate dict (from candidates.jsonl).
+        jd_config:  Optional parsed JD config from jd_parser.parse_jd().
+                    If None, the default Redrob JD config is used.
+
     Flow:
     1. Honeypot check → zero everything
-    2. Compute 5 dimension scores
+    2. Compute 5 dimension scores (JD-aware)
     3. Deception signals assessment
     4. Hidden gem detection
     5. Apply bonuses and penalties
     6. Produce final composite in [0, 1]
     """
+    cfg = jd_config if jd_config is not None else _default_jd()
     cid = candidate.get("candidate_id", "UNKNOWN")
 
     # ── Step 1: Honeypot gate ──────────────────────────────────────────────
@@ -1498,12 +1529,12 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
             "salary_mult": 1.0,
         }
 
-    # ── Step 2: Dimension scores ───────────────────────────────────────────
-    career_score = score_career_substance(candidate)
-    skill_score = score_skill_credibility(candidate)
-    exp_score = score_experience_quality(candidate)
+    # ── Step 2: Dimension scores (JD-aware) ───────────────────────────────
+    career_score = score_career_substance(candidate, cfg)
+    skill_score = score_skill_credibility(candidate, cfg)
+    exp_score = score_experience_quality(candidate, cfg)
     avail_score = score_behavioral_availability(candidate)
-    loc_score = score_location(candidate)
+    loc_score = score_location(candidate, cfg)
     star_score = score_star_predictor(candidate)
 
     # Weighted base score
@@ -1535,7 +1566,7 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
     auth_bonus = compute_authenticity_bonus(candidate)
 
     # ── Step 5d: CV/speech/robotics specialist penalty ─────────────────────
-    cv_penalty = compute_cv_speech_penalty(candidate)
+    cv_penalty = compute_cv_speech_penalty(candidate, cfg)
 
     # ── Step 5e: Current company quality bonus ──────────────────────────
     company_bonus = compute_current_company_bonus(candidate)
@@ -1546,8 +1577,8 @@ def compute_composite_score(candidate: dict) -> Dict[str, Any]:
     # ── Step 5g: Language proficiency bonus ─────────────────────────────
     lang_bonus = compute_language_bonus(candidate)
 
-    # ── Step 5h: Salary alignment multiplier ─────────────────────────────
-    salary_mult = compute_salary_alignment(candidate)
+    # ── Step 5h: Salary alignment multiplier (JD-aware) ──────────────────
+    salary_mult = compute_salary_alignment(candidate, cfg)
 
     # ── Step 6: Final composite ───────────────────────────────────────────
     # GATE: career_substance is the most important signal.

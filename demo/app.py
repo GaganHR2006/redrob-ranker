@@ -22,6 +22,12 @@ import altair as alt
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from rank.scoring import compute_composite_score
+try:
+    from rank.jd_parser import validate_jd, parse_jd, get_default_config as get_default_jd
+except ImportError:
+    validate_jd = None
+    parse_jd = None
+    get_default_jd = None
 from rank.reasoning import generate_reasoning
 from rank.prove_it import run_prove_it, prove_it_summary
 from rank.interview_blueprint import generate_interview_blueprint
@@ -732,21 +738,116 @@ def show_cohort_analysis(candidates_with_scores: list):
 # ─── Main App ─────────────────────────────────────────────────────────────────
 
 def main():
+    # Resolve active JD config
+    if "jd_config" not in st.session_state:
+        st.session_state.jd_config = get_default_jd() if get_default_jd else None
+    jd_cfg = st.session_state.jd_config
+    jd_title = (jd_cfg or {}).get("title", "Senior AI Engineer — Founding Team")
+    jd_company = (jd_cfg or {}).get("company_name", "")
+    tagline = f"**{jd_title}**" + (f" @ {jd_company}" if jd_company else "")
+    tagline += " | Intelligent Candidate Discovery System"
+
     st.title("Redrob AI Candidate Ranker")
-    st.markdown("**Senior AI Engineer — Founding Team** | Intelligent Candidate Discovery System")
+    st.markdown(tagline)
     st.divider()
     
     # Sidebar
     with st.sidebar:
+        # ── Section 1: Job Description ───────────────────────────────────────
+        st.header("📋 Job Description")
+        st.markdown("Upload a custom JD to rank candidates for any role.")
+
+        uploaded_jd = st.file_uploader("Upload JD (JSON)", type=["json"], key="jd_upload")
+
+        with st.expander("📐 JD Schema — required format"):
+            st.markdown("""
+**Required fields:**
+```json
+{
+  "title": "Your Job Title",
+  "required_skills": ["python", "pytorch", "your-skill"],
+  "preferred_locations": ["bangalore", "mumbai"],
+  "experience_years": { "min": 3, "max": 8 }
+}
+```
+**Optional fields:**
+- `positive_title_tokens` — titles that confirm a good candidate
+- `hard_negative_title_tokens` — titles that disqualify
+- `acceptable_locations` — tier-2 city list
+- `experience_years.ideal_min` / `.ideal_max` — sweet spot band
+- `salary_range_inr_lpa` — `{"min": 10, "max": 80}`
+- `avoid_consulting_only` — `true`/`false`
+- `cv_specialty_penalty_keywords` — domains to penalise
+- `company_name` — shown in UI only
+
+[📄 Download full schema](https://github.com/GaganHR2006/redrob-ranker/blob/main/jd_schema.json)
+            """)
+
+        if uploaded_jd:
+            try:
+                jd_raw = json.loads(uploaded_jd.read().decode("utf-8"))
+                errors = validate_jd(jd_raw) if validate_jd else []
+                if errors:
+                    for e in errors:
+                        st.error(f"❌ {e}")
+                else:
+                    st.session_state.jd_config = parse_jd(jd_raw) if parse_jd else None
+                    jd_cfg = st.session_state.jd_config
+                    st.success(f"✅ JD loaded: **{jd_raw.get('title', 'Custom Role')}**")
+                    # Reset candidate scores when JD changes
+                    st.session_state.candidates_data = None
+            except Exception as ex:
+                st.error(f"Failed to parse JD JSON: {ex}")
+
+        if st.button("↩️ Reset to Default JD"):
+            st.session_state.jd_config = get_default_jd() if get_default_jd else None
+            st.session_state.candidates_data = None
+            st.rerun()
+
+        st.divider()
+
+        # ── Section 2: Candidates ─────────────────────────────────────────────
         st.header("Upload Candidates")
-        st.markdown("Upload a JSON file containing an array of candidate objects.")
-        
+        st.markdown("Upload a JSON/JSONL file of candidate objects.")
+
+        with st.expander("📐 Candidates Schema — required format"):
+            st.markdown("""
+**Each candidate must be a JSON object with:**
+```json
+{
+  "candidate_id": "CAND_0000001",
+  "profile": {
+    "current_title": "ML Engineer",
+    "location": "Pune, Maharashtra",
+    "years_of_experience": 6,
+    "headline": "...", "summary": "..."
+  },
+  "career_history": [
+    {"title": "...", "company": "...",
+     "duration_months": 24, "description": "..."}
+  ],
+  "skills": [
+    {"name": "Python", "proficiency": "expert",
+     "endorsements": 20, "duration_months": 36}
+  ],
+  "redrob_signals": {
+    "last_active_date": "2024-05-01",
+    "open_to_work_flag": true,
+    "recruiter_response_rate": 0.85,
+    "notice_period_days": 30,
+    "github_activity_score": 72
+  }
+}
+```
+File format: `.json` (array) or `.jsonl` (one object per line)
+            """)
+
         uploaded = st.file_uploader("Choose JSON/JSONL file", type=["json", "jsonl"])
-        
+
         st.divider()
         st.markdown("**Try without uploading:**")
         use_top100 = st.button("🏆 Load Top 100 Ranked Candidates", type="primary")
-        
+
         st.divider()
         st.markdown("**About this system:**")
         st.markdown("""
@@ -757,6 +858,7 @@ def main():
         - Star Predictor (career arc velocity)
         - No API keys required
         - Runs in <5 min on 100K candidates
+        - **Supports custom JD upload** ↑
         """)
     
     # Load candidates
@@ -852,7 +954,7 @@ def main():
     with st.spinner(f"Scoring {len(candidates_data)} candidates..."):
         candidates_with_scores = []
         for c in candidates_data:
-            s = compute_composite_score(c)
+            s = compute_composite_score(c, jd_cfg)
             candidates_with_scores.append((c, s))
         
         # Sort by score
