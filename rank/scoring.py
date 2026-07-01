@@ -1048,48 +1048,12 @@ def detect_hidden_gem(candidate: dict, career_score: float, skill_score: float) 
         ownership_hits += sum(1 for w in ownership_indicators if w in desc)
         system_hits += sum(1 for w in system_indicators if w in desc)
 
-    # Anti-false-positive: exclude pure CV/Speech/Robotics specialists from being gems
-    # for an NLP/retrieval role.
-    # PRIMARY CHECK: if the candidate's own title/headline labels them as a CV or Speech
-    # specialist, they are the wrong hire — regardless of what appears in descriptions.
-    wrong_domain_titles = (
-        "computer vision", "cv engineer", "image", "vision engineer",
-        "speech", "asr", "voice", "robotics", "lidar",
-    )
-    title_text = (
-        (profile.get("current_title", "") or "").lower() + " " +
-        (profile.get("headline", "") or "").lower()
-    )
-    if any(s in title_text for s in wrong_domain_titles):
-        return False
-
-    # SECONDARY CHECK: if descriptions are dominated by wrong-domain signals
-    wrong_domain_signals = (
-        "computer vision", "image recognition", "object detection",
-        "image classification", "image segmentation", "resnet", "yolo",
-        "speech recognition", "voice recognition", "text to speech",
-        "robotics", "slam", "lidar",
-    )
-    right_domain_signals = (
-        "retrieval", "search", "recommend", "nlp",
-        "natural language", "embedding", "vector",
-        "rag", "language model", "semantic", "ranking",
-        "relevance", "query", "text classification",
-    )
-    desc_text = " ".join(
-        (ch.get("description", "") or "").lower() for ch in career
-    )
-    wrong_hits = sum(1 for s in wrong_domain_signals if s in desc_text)
-    right_hits  = sum(1 for s in right_domain_signals if s in desc_text)
-    if wrong_hits > 0 and wrong_hits > right_hits:
-        return False
-
     # Criteria: meaningful career score, career-skill gap, ownership evidence, right YoE
     is_gem = (
         career_score >= 0.50 and       # actual strong production evidence in career
-        skill_score < 0.35 and         # didn't keyword stuff their skills
-        career_skill_gap >= 0.20 and   # career >> skills list (plain-language engineer)
-        ownership_hits >= 4 and        # owns real systems
+        skill_score  < 0.30 and        # genuinely did not keyword-stuff skills list
+        career_skill_gap >= 0.25 and   # large gap: career >> skills (plain-language engineer)
+        ownership_hits >= 5 and        # owns real systems (raised from 4)
         system_hits >= 3 and           # builds real systems
         yoe >= 4.0                     # enough experience to be the right hire
     )
